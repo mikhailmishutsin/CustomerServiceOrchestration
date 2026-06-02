@@ -3,7 +3,7 @@
 ## In scope for first milestone
 
 ### Main flow
-Find last X orders by customer phone/email and send a support summary back to Helpdesk.
+Find last X orders by customer phone/email/name/order reference and send a support summary back to Helpdesk.
 
 ### Input
 A request from Helpdesk containing ticket and customer context.
@@ -13,6 +13,7 @@ Minimum useful fields:
 - customer phone
 - customer email
 - customer name if available
+- order reference if available
 - ticket subject
 - ticket description
 - source/channel
@@ -21,13 +22,15 @@ Minimum useful fields:
 The orchestration layer should:
 1. Receive Helpdesk request.
 2. Extract customer identifiers.
-3. Call OMS search API.
+3. Call OMS search API with optional `filter_mode` and `expand=true`.
 4. Get last X matching orders.
-5. Normalize raw OMS response.
-6. Prepare order/shipment summary.
-7. Build Helpdesk update payload.
-8. In dry-run mode, return the payload without sending it.
-9. In real mode, update Helpdesk.
+5. If expanded details are present, use them directly.
+6. If expanded details are missing, call `get_order_details`, preferably with `expand=true`.
+7. Normalize raw OMS response.
+8. Prepare order/shipment summary.
+9. Build Helpdesk update payload.
+10. In dry-run mode, return the payload without sending it.
+11. In real mode, update Helpdesk.
 
 ### Output to Helpdesk
 At minimum:

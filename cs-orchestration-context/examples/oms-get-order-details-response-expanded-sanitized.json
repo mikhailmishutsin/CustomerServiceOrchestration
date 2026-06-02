@@ -1,0 +1,84 @@
+{
+  "business_object": "orders",
+  "environment": "prod",
+  "expand": true,
+  "operation": "get_order_details",
+  "order": {
+    "currency": "USD",
+    "line_count": 1,
+    "lines": [
+      {
+        "description": "New P 245/50R20 Continental CrossContact LX25 102H",
+        "price": "249.63",
+        "purchase_order_line_count": 1,
+        "purchase_order_lines": [
+          {
+            "fulfillment_status": "Shipped",
+            "purchase_order_line_id": "recXXXXXXXXXXXXXX",
+            "purchase_order_number": "ORD-260320-XXXXX",
+            "quantity": "1",
+            "shipping_information": {
+              "from": {
+                "supplier_name": "Example Supplier",
+                "supplier_warehouse": "Example_Warehouse_00000"
+              },
+              "tracking_information": {
+                "carrier": "FedEx",
+                "child_tracking_numbers": [],
+                "master_tracking_number": "999999999999",
+                "tracking_status": {
+                  "999999999999": {
+                    "actual_pickup_date": "2026-03-20T00:00:00+00:00",
+                    "description": "In transit",
+                    "estimated_delivery_window_begins": "2026-03-23T09:00:00-04:00",
+                    "estimated_delivery_window_ends": "2026-03-23T17:00:00-04:00",
+                    "first_scan_date": "2026-03-20T13:34:05-04:00",
+                    "ship_date": "2026-03-20T00:00:00+00:00",
+                    "status": "In transit",
+                    "status_code": "IT",
+                    "success": true,
+                    "tracking_number": "999999999999"
+                  }
+                },
+                "tracking_status_urls": {
+                  "999999999999": "https://ds.example.com/fedex_api_gate/tracking_number_check?tracking_number=999999999999&secret_key=***"
+                }
+              }
+            },
+            "supplier_price": "177.78"
+          }
+        ],
+        "quantity": "1",
+        "sku": "u-xxxxxxxx",
+        "tax_amount": "14.98",
+        "tax_percent": "0.06001"
+      }
+    ],
+    "marketplace": "ebay_main",
+    "order_date": "2026-03-19T23:04:18.000Z",
+    "order_id": "ebay-00-00000-00000",
+    "order_number": "ebay-00-00000-00000",
+    "order_status": "Done",
+    "order_status_fulfillment": "Shipped",
+    "payment_method": "M2E Pro Payment",
+    "shipping_information": {
+      "to": {
+        "city": "Example City",
+        "email": "customer@example.com",
+        "full_name": "Example Customer",
+        "phone": "+15551234567",
+        "state": "MI",
+        "street1": "123 Example St",
+        "street2": "",
+        "zip": "00000-0000"
+      }
+    },
+    "tax_percent": "0.06001",
+    "tax_total": "14.98",
+    "total_with_taxes": "264.61",
+    "transaction_id": "0000000000000",
+    "untaxed_total": "249.63"
+  },
+  "order_number": "ebay-00-00000-00000",
+  "success": true
+}
