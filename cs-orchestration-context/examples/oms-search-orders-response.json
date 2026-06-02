@@ -1,0 +1,33 @@
+{
+  "order_count": 1,
+  "orders": [
+    {
+      "order_number": "WLM-123456",
+      "order_date": "2026-06-01T10:30:00Z",
+      "marketplace": "Walmart",
+      "order_status": "Confirmed",
+      "fulfillment_status": "Shipped",
+      "customer": {
+        "name": "John Customer",
+        "email": "customer@example.com",
+        "phone": "+15555555555"
+      },
+      "shipping_address": {
+        "line1": "123 Main St",
+        "city": "Austin",
+        "state": "TX",
+        "postal_code": "78701",
+        "country": "US"
+      },
+      "shipments": [
+        {
+          "carrier": "FedEx",
+          "tracking_number": "1234567890",
+          "tracking_status": "In transit",
+          "eta": "2026-06-04"
+        }
+      ],
+      "details_url": "https://example.com/order/123456"
+    }
+  ]
+}

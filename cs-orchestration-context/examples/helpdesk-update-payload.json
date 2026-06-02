@@ -1,0 +1,12 @@
+{
+  "ticket_id": "12345",
+  "private_note": "Latest order WLM-123456 from 2026-06-01. Status: Confirmed. Fulfillment: Shipped. Shipment: FedEx 1234567890 - In transit. ETA: 2026-06-04.",
+  "custom_fields": {
+    "order_summary": "WLM-123456: Shipped, FedEx In transit, ETA 2026-06-04",
+    "order_link": "https://example.com/order/123456"
+  },
+  "metadata": {
+    "source": "orchestration-layer",
+    "dry_run": true
+  }
+}

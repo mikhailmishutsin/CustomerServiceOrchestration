@@ -1,0 +1,14 @@
+{
+  "ticket_id": "12345",
+  "customer": {
+    "name": "John Customer",
+    "email": "customer@example.com",
+    "phone": "+15555555555"
+  },
+  "ticket": {
+    "subject": "Where is my order?",
+    "description": "I need an update on delivery",
+    "source": "email",
+    "channel": "freshdesk"
+  }
+}
