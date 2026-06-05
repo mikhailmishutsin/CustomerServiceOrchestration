@@ -88,6 +88,9 @@ Fields:
 - short_summary
 - private_note
 - latest_order_link
+- latest_delivery_status
+- latest_delivery_eta
+- latest_order_date
 - confidence
 - warnings
 
@@ -101,3 +104,52 @@ Fields:
 - tags optional
 - priority optional
 - type optional
+
+Common custom fields currently produced:
+- `order_summary`
+- `order_link`
+- `delivery_status`
+- `delivery_eta`
+- `order_date`
+
+## Enrichment Metadata
+
+Important metadata fields used by current workflows:
+- `operation`
+- `dry_run`
+- `confidence`
+- `warnings`
+- `search_window_note`
+- `search_window_days`
+- `oms_max_records`
+- `order_count`
+- `returned_order_count`
+- `raw_order_count`
+- `matched_by`
+- `match_quality`
+- `exact_contact_match_found`
+- `contact_match_details`
+- `lookup_used`
+- `lookup_attempts`
+- `freshdesk` when a Freshdesk note is created
+
+Contact match values:
+- `matched_by=contact_exact` when phone and email matched together.
+- `matched_by=contact_partial_phone` when exact match failed but phone-only fallback found orders.
+- `matched_by=contact_partial_email` when exact match and phone fallback failed but email-only fallback found orders.
+- `matched_by=contact_single_field` when only phone or only email was provided.
+- `matched_by=order_reference` when lookup found by order number.
+
+Match quality values:
+- `exact_contact_match`
+- `partial_contact_match`
+- `single_field_contact_match`
+
+Partial contact match details:
+
+```json
+{
+  "matched_on": ["customer_phone"],
+  "mismatched_on": ["customer_email"]
+}
+```

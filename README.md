@@ -1,15 +1,16 @@
 # CustomerServiceOrchestration
 Orchestration Layer for Customer Service department
 
-## First milestone
+## Current milestone
 
-This repo now includes the first small API skeleton for ticket enrichment:
+This repo includes a working Customer Service orchestration service:
 
-- receives a normalized helpdesk ticket request
-- reads sanitized mock OMS data
+- receives Freshdesk recent-order requests
+- calls the Order Business API in real mode or sanitized fixtures in mock mode
 - normalizes recent order and shipment data
 - prefers embedded `tracking_status` from `expand=true`
-- returns a dry-run helpdesk update payload
+- creates Freshdesk private notes when `DRY_RUN=false`
+- runs locally and as a Render Web Service
 
 ## Local setup
 
@@ -35,13 +36,13 @@ python -m pytest
 Run the API locally:
 
 ```bash
-python -m uvicorn cs_orchestration.main:app --reload
+python -m uvicorn cs_orchestration.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
 Then open:
 
 ```text
-http://127.0.0.1:8000/docs
+http://127.0.0.1:8001/docs
 ```
 
 ## Current API
@@ -49,6 +50,9 @@ http://127.0.0.1:8000/docs
 ```text
 GET /
 POST /enrich-ticket
+POST /enrichment/resolve
+POST /orders/latest-by-contact
+POST /orders/recent-by-contact
 POST /freshdesk/recent-orders
 GET /health
 GET /config/status
@@ -75,6 +79,14 @@ FEDEX_API_USER
 FEDEX_API_PASSWORD
 FEDEX_API_SECRET_KEY
 
+FRESHDESK_BASE_URL
+FRESHDESK_API_KEY
+
+INBOUND_API_KEY
+APP_ENV
+DRY_RUN
+EXPOSE_DOCS
+EXPOSE_DEBUG_ERRORS
 INTEGRATION_MODE
 ```
 
@@ -158,3 +170,7 @@ Example body:
   "order_number": ""
 }
 ```
+
+`POST /freshdesk/recent-orders` defaults to the last 3 recent OMS records.
+When phone and email are both provided, the workflow tries exact contact match first.
+If exact match fails, it falls back to phone-only then email-only and marks the result as a partial match.

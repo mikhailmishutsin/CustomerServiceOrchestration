@@ -30,17 +30,40 @@ Expected structure:
 - product/SKU adapter
 - workflow/orchestration services
 
-## Current priority
-First milestone:
-Helpdesk request -> OMS lookup -> normalize order data -> create support summary -> update Helpdesk ticket.
+## Current implementation status
+The first milestone is implemented and deployed publicly on Render.
 
-Initial use case:
-Find last X orders by customer phone/email and return:
+Implemented flow:
+Freshdesk request -> Render API -> Order Business API lookup -> normalized order/shipment data -> Freshdesk private note.
+
+Current primary use case:
+Find the last 3 recent orders by Freshdesk ticket/customer data and write an agent-facing private note back to the Freshdesk ticket.
+
+The request can include:
+- Freshdesk ticket id
+- customer phone
+- customer email
+- optional order number
+
+The response/note includes:
 - order information
+- marketplace
+- customer information
 - fulfillment status
 - shipment/tracking status
 - ETA if available
-- useful support summary for the agent
+- first FedEx scan date if available
+- safe Sales Order link for agents
+- exact/partial contact match warning when relevant
+
+Current public production endpoint:
+- `POST /freshdesk/recent-orders`
+
+Current deployment:
+- Render web service
+- production mode disables public `/docs`, `/redoc`, `/openapi.json`, `/`, and `/config/status`
+- `/health` remains public
+- inbound calls require `X-API-Key` when `INBOUND_API_KEY` is configured, and production requires it
 
 ## Engineering rules
 - Do not hardcode API keys or secrets.
@@ -52,6 +75,9 @@ Find last X orders by customer phone/email and return:
 - Prefer simple readable code over complex abstractions.
 - All API payload examples must be sanitized.
 - Do not commit `.env` files.
+- Keep `DRY_RUN=true` for deployment smoke tests; use `DRY_RUN=false` only when writing Freshdesk notes intentionally.
+- Do not expose debug request payloads in production.
+- If both phone and email are provided, try exact contact match first; if not found, fallback to phone-only then email-only partial matching.
 
 ## Suggested implementation style
 - Use a small web API first.
@@ -60,11 +86,9 @@ Find last X orders by customer phone/email and return:
 - Make workflows explicit and testable.
 - Log enough to debug integrations, but never log secrets or full customer PII unnecessarily.
 
-## Definition of done for first milestone
-- Local app can receive a mock Helpdesk webhook.
-- App can search mock OMS data by phone or email.
-- App normalizes OMS response into internal order model.
-- App builds a Helpdesk update payload.
-- App supports dry-run mode that prints the outgoing Helpdesk update.
-- Tests cover at least one OMS response and one Helpdesk update payload.
-- README documents env vars and local run commands.
+## Definition of done for future feature threads
+- Read this file plus `docs/project-context.md`, `docs/current-scope.md`, `docs/api-contracts.md`, `docs/workflows.md`, `docs/security.md`, and `docs/decisions.md`.
+- Preserve the existing Freshdesk/OMS flow unless the user explicitly changes it.
+- Add focused tests for every workflow or adapter change.
+- Keep new integrations behind adapters/clients.
+- Push changes to GitHub when the user needs Render to deploy them.

@@ -25,6 +25,14 @@ assign_ticket(ticket_id, group_id, agent_id)
 - Handle Freshdesk API errors and rate limits.
 - Hide Freshdesk-specific behavior from workflow services.
 
+Current implementation:
+- `FreshdeskAdapter.apply_update(update)` posts private notes to Freshdesk.
+- Endpoint used: `POST {FRESHDESK_BASE_URL}/api/v2/tickets/{ticket_id}/notes`.
+- Authentication uses `FRESHDESK_API_KEY` as Freshdesk Basic auth username and `X` as password.
+- Payload uses Freshdesk `body` plus `private=true`.
+- The adapter converts plain-text notes into HTML and appends a clickable Sales Order link when `custom_fields.order_link` exists.
+- Freshdesk response metadata is attached under `metadata.freshdesk`.
+
 ## Common field examples
 
 ```text
@@ -34,3 +42,25 @@ private_note -> Freshdesk private note endpoint
 ```
 
 Exact Freshdesk field names should be configured, not hardcoded in business workflows.
+
+## Current Freshdesk endpoint
+
+The first channel-specific route is:
+
+```text
+POST /freshdesk/recent-orders
+```
+
+It accepts:
+
+```json
+{
+  "ticket_id": "112",
+  "customer_phone": "+15551234567",
+  "customer_email": "customer@example.com",
+  "order_number": ""
+}
+```
+
+It builds a common `HelpdeskUpdate`.
+When `DRY_RUN=false`, the adapter creates a Freshdesk private note.

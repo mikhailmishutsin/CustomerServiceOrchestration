@@ -38,7 +38,28 @@ For high-confidence cases, the system should be able to send replies automatical
 - programmable voice for phone calls
 
 ## First step
-Build an API layer that receives requests from the Helpdesk system, calls OMS, post-processes the response and sends useful information back to Helpdesk.
+The first public API layer is now implemented.
 
-Initial use case:
-Find last X orders by customer phone/email and return order information, shipping status and ETA.
+Current implemented use case:
+Freshdesk sends ticket id, customer phone/email, and optional order number to the Render-hosted orchestration API.
+The service calls the Order Business API, normalizes recent order and shipment data, then writes a Freshdesk private note.
+
+Current production endpoint:
+
+```text
+POST /freshdesk/recent-orders
+```
+
+Current deployment state:
+- hosted as a Render Web Service
+- `/health` is public
+- `/docs`, `/redoc`, `/openapi.json`, `/`, and `/config/status` are disabled in production mode
+- inbound requests are protected by `X-API-Key`
+- outgoing Freshdesk writes use `FRESHDESK_API_KEY`
+
+Current WISMO/recent-order behavior:
+- default Freshdesk recent-orders lookup asks OMS for 3 records
+- phone/email exact match is attempted first when both values are provided
+- if no exact contact match exists, fallback searches phone-only then email-only
+- partial matches are clearly marked in metadata and private note text
+- Sales Order links are included in Freshdesk private notes when available

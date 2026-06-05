@@ -24,6 +24,129 @@ Expected normalized input:
 }
 ```
 
+## Freshdesk recent orders endpoint
+
+### Purpose
+Freshdesk calls this endpoint to enrich a ticket with recent order history and, when `DRY_RUN=false`, create a Freshdesk private note.
+
+### Endpoint
+
+```text
+POST /freshdesk/recent-orders
+```
+
+### Authentication
+When `INBOUND_API_KEY` is configured, callers must send:
+
+```text
+X-API-Key: value-from-INBOUND_API_KEY
+```
+
+Production mode requires `INBOUND_API_KEY`.
+
+### Request body
+
+```json
+{
+  "ticket_id": "112",
+  "customer_phone": "+15551234567",
+  "customer_email": "customer@example.com",
+  "order_number": ""
+}
+```
+
+Fields:
+- `ticket_id` is required.
+- `customer_phone` is optional but recommended.
+- `customer_email` is optional but recommended.
+- `order_number` is optional.
+
+At least one lookup value is required:
+- `customer_phone`
+- `customer_email`
+- `order_number`
+
+### Behavior
+- Default Freshdesk recent-orders lookup asks OMS for 3 records.
+- Phone numbers are normalized before OMS lookup. Example: `+1 (555) 123-4567` becomes `5551234567`.
+- If phone and email are both provided, the service tries exact contact match first.
+- If exact contact match finds nothing, the service falls back to phone-only then email-only searches.
+- Partial contact matches are flagged in metadata and private note text.
+- `DRY_RUN=true` returns the Helpdesk update payload but does not create a Freshdesk note.
+- `DRY_RUN=false` creates a Freshdesk private note.
+
+### Response body
+
+The response is a common `HelpdeskUpdate`.
+
+```json
+{
+  "ticket_id": "112",
+  "private_note": "Found 1 order(s) in the last 30 days...",
+  "public_reply": null,
+  "custom_fields": {
+    "order_summary": "Latest order WLM-123 placed Jun 01, 2026, 10:15 AM ET | Delivery status: Delivered.",
+    "order_link": "https://ds.utires.com/order_management/#order=WLM-123",
+    "delivery_status": "Delivered",
+    "delivery_eta": "Jun 03, 2026, 9:00 AM - 5:00 PM ET",
+    "order_date": "Jun 01, 2026, 10:15 AM ET"
+  },
+  "tags": ["oms-enriched"],
+  "metadata": {
+    "dry_run": false,
+    "operation": "recent_orders_by_contact_or_reference",
+    "oms_max_records": 3,
+    "matched_by": "contact_exact",
+    "match_quality": "exact_contact_match",
+    "exact_contact_match_found": true,
+    "order_count": 1,
+    "freshdesk": {
+      "note_id": 98765,
+      "ticket_id": 112,
+      "private": true,
+      "status_code": 201
+    }
+  }
+}
+```
+
+Partial match example:
+
+```json
+{
+  "metadata": {
+    "matched_by": "contact_partial_phone",
+    "match_quality": "partial_contact_match",
+    "exact_contact_match_found": false,
+    "contact_match_details": {
+      "matched_on": ["customer_phone"],
+      "mismatched_on": ["customer_email"]
+    },
+    "warnings": [
+      "Partial contact match only: matched on phone, did not match on email."
+    ]
+  }
+}
+```
+
+### Freshdesk note formatting
+The Freshdesk adapter posts:
+
+```text
+POST {FRESHDESK_BASE_URL}/api/v2/tickets/{ticket_id}/notes
+```
+
+Payload:
+
+```json
+{
+  "body": "<div>...</div>",
+  "private": true
+}
+```
+
+The note body includes a clickable Sales Order link when `custom_fields.order_link` exists.
+
 ## OMS `search_orders`
 
 ### Purpose
@@ -81,6 +204,16 @@ Example with `any`:
 
 ```text
 /search_orders?customer_phone=5551234567&filter_mode=any&expand=true&secret_key=***
+```
+
+Implementation note:
+The current Freshdesk partial-match fallback does not call OMS with both phone and email plus `filter_mode=any`, because the live OMS API returned HTTP 400 for that combination.
+Instead it uses simple fallback searches:
+
+```text
+1. phone + email with filter_mode=all
+2. phone only
+3. email only
 ```
 
 Example with filters:

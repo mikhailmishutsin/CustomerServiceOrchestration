@@ -1,29 +1,40 @@
 # Workflows
 
-## Workflow 1: Enrich Helpdesk ticket with recent orders
+## Workflow 1: Freshdesk recent orders private note
 
 ### Trigger
-Helpdesk sends a webhook or API request when a ticket is created or updated.
+Freshdesk sends an API request for a ticket that needs recent order context.
+
+Current endpoint:
+
+```text
+POST /freshdesk/recent-orders
+```
 
 ### Steps
-1. Receive ticket context.
-2. Extract customer phone, email, full name, and order reference if available.
-3. Build OMS search request.
-4. Decide `filter_mode`:
-   - omit when only one criterion is used or default API behavior is desired;
-   - use `all` when all provided criteria must match;
-   - use `any` when broad matching is needed, for example phone OR email OR name.
-5. Prefer `expand=true` for order-status enrichment because it can return order details and tracking status in one response.
-6. Call OMS `search_orders`.
-7. Sort orders from newest to oldest by `order_date` if needed.
-8. For each selected order:
+1. Receive ticket id, customer phone, customer email, and optional order number.
+2. Validate inbound `X-API-Key` when configured.
+3. Normalize phone for OMS search.
+4. If both phone and email exist, try exact contact search first:
+   phone + email with `filter_mode=all`.
+5. If exact contact search finds nothing, fallback to partial matching:
+   phone-only search, then email-only search.
+6. If order number exists and contact lookup does not find orders, search by order reference.
+7. Prefer `expand=true` for order-status enrichment because it can return order details and tracking status in one response.
+8. Call OMS `search_orders` with `max_records=3` for the Freshdesk recent-orders endpoint.
+9. Sort orders from newest to oldest by `order_date` if needed.
+10. For each selected order:
    - if `orders[].details` exists, use it for line and shipment data;
    - if `orders[].details` is missing, call `get_order_details` with `expand=true` when shipment data is required.
-9. If expanded details still do not include `tracking_status`, use `tracking_status_urls` as fallback.
-10. Normalize orders and shipments.
-11. Build short support summary.
-12. Build full private note.
-13. Update Helpdesk ticket through the helpdesk adapter.
+11. If expanded details still do not include `tracking_status`, use `tracking_status_urls` as fallback.
+12. Normalize orders and shipments.
+13. Format order dates, ETA windows, first scan dates, and delivery dates in agent-friendly form.
+14. Build short support summary.
+15. Build full private note.
+16. Add partial-match warning if phone/email exact match was not found.
+17. Add Sales Order link when available.
+18. In `DRY_RUN=true`, return the Helpdesk update payload without writing to Freshdesk.
+19. In `DRY_RUN=false`, create a Freshdesk private note.
 
 ### Success result
 Agent can see recent order and shipment status directly in the ticket.
@@ -38,6 +49,29 @@ No matching orders found by provided phone/email/name/order reference.
 ### Multiple orders result
 Show last X orders, newest first.
 Clearly mark the latest order.
+For ambiguous multiple matches, ask the agent/customer for the last 4 digits of the order number.
+
+### Partial contact match result
+When both phone and email are provided but no exact contact match is found, the note should clearly say:
+
+```text
+No exact match was found for the provided contact data.
+Partial match found: matched on phone, did not match on email.
+```
+
+Metadata should include:
+
+```text
+match_quality=partial_contact_match
+exact_contact_match_found=false
+contact_match_details.matched_on
+contact_match_details.mismatched_on
+```
+
+### Important implementation note
+Do not use `filter_mode=any` with both phone and email for the current Freshdesk partial-match fallback.
+The live OMS API returned HTTP 400 for that combination.
+Use phone-only and email-only fallback searches instead.
 
 ## Workflow 2: Get specific order details
 

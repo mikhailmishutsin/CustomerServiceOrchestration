@@ -7,17 +7,22 @@ This service connects the Helpdesk system with internal business systems such as
 
 The first implementation target is Freshdesk, but the core design should not depend on Freshdesk directly. Freshdesk must be treated as one adapter behind a common Helpdesk interface.
 
-## First milestone
-Build a minimal flow:
+## Current milestone status
+The first Freshdesk/OMS orchestration milestone is implemented and deployed.
+
+Current production-style flow:
 
 ```text
-Helpdesk ticket/request
--> orchestration API
--> OMS lookup by customer phone/email
+Freshdesk ticket/request
+-> Render-hosted orchestration API
+-> Order Business API lookup by phone/email/order number
 -> normalize order and shipment data
 -> prepare agent-facing summary
--> push update back to Helpdesk
+-> create Freshdesk private note
 ```
+
+The local app still provides Swagger and a debug UI for development.
+Production mode hides those public surfaces.
 
 ## Planned integrations
 - Helpdesk: Freshdesk first, replaceable later
@@ -48,29 +53,49 @@ tests/
 - Commit examples only after sanitizing customer data.
 
 ## Environment variables
-Create `.env` locally based on `.env.example`.
+Create `.env` locally based on root `.env.example`.
+For Render, configure the same values in the Render Environment Variables dashboard.
 
 ```bash
 APP_ENV=local
 DRY_RUN=true
-OMS_API_BASE_URL=
-OMS_API_KEY=
-HELPDESK_PROVIDER=freshdesk
+INTEGRATION_MODE=mock
+INBOUND_API_KEY=
+ORDER_BUSINESS_API_BASE_URL=
+ORDER_BUSINESS_API_USER=
+ORDER_BUSINESS_API_PASSWORD=
+ORDER_BUSINESS_API_SECRET_KEY=
 FRESHDESK_BASE_URL=
 FRESHDESK_API_KEY=
 ```
 
-## Suggested first Codex task
+## Current public integration endpoint
 
 ```text
-Read AGENTS.md and docs/*.md.
-Create the initial app structure for the orchestration layer.
-Implement the first flow in mock/dry-run mode only:
-POST /webhooks/helpdesk/ticket-created
--> parse request
--> lookup mock OMS orders by phone/email
--> normalize orders
--> build Helpdesk update payload
--> return dry-run response.
-Add tests for normalizer and payload builder.
+POST /freshdesk/recent-orders
+```
+
+Required header when inbound auth is configured:
+
+```text
+X-API-Key: value-from-INBOUND_API_KEY
+```
+
+Request body:
+
+```json
+{
+  "ticket_id": "12345",
+  "customer_phone": "+15551234567",
+  "customer_email": "customer@example.com",
+  "order_number": ""
+}
+```
+
+## Suggested next Codex task pattern
+
+```text
+Read cs-orchestration-context/AGENTS.md and docs/*.md first.
+Then implement only the requested feature, preserving the existing Freshdesk/OMS deployed flow.
+Run tests before finishing and push to GitHub if Render needs to deploy the change.
 ```
