@@ -217,6 +217,33 @@ def test_generic_enrichment_request_can_search_by_order_reference() -> None:
     )
 
 
+def test_order_management_base_url_is_normalized_when_hash_fragment_is_missing() -> None:
+    oms_client = MockOmsClient(FIXTURE)
+    workflow = EnrichTicketWithOrdersWorkflow(
+        oms_client=oms_client,
+        order_management_base_url="https://ds.utires.com/order_management/",
+        now_provider=lambda: datetime(2026, 6, 4, tzinfo=UTC),
+    )
+
+    update = workflow.run(
+        HelpdeskRequest(
+            ticket_id="12345",
+            customer=Customer(phone="+15555555555"),
+            ticket=TicketContext(channel="freshdesk"),
+        ),
+        dry_run=True,
+    )
+
+    assert (
+        update.custom_fields["order_link"]
+        == "https://ds.utires.com/order_management/#order=wlm-000000000000000"
+    )
+    assert (
+        update.metadata["matched_orders"][0]["order_link"]
+        == "https://ds.utires.com/order_management/#order=wlm-000000000000000"
+    )
+
+
 def test_unknown_case_type_does_not_block_wismo_flow() -> None:
     oms_client = MockOmsClient(FIXTURE)
     workflow = EnrichTicketWithOrdersWorkflow(

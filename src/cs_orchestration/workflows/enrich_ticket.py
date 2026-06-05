@@ -44,7 +44,9 @@ class EnrichTicketWithOrdersWorkflow:
     ) -> None:
         self.oms_client = oms_client
         self.helpdesk_adapter = helpdesk_adapter
-        self.order_management_base_url = order_management_base_url
+        self.order_management_base_url = _normalize_order_management_base_url(
+            order_management_base_url
+        )
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
 
     def run(
@@ -297,7 +299,6 @@ class EnrichTicketWithOrdersWorkflow:
             order.details_ref.safe_agent_url = (
                 f"{self.order_management_base_url}{order_ref}"
             )
-
     def _search_with_priority(
         self,
         request: EnrichmentRequest,
@@ -709,3 +710,22 @@ class EnrichTicketWithOrdersWorkflow:
         absolute_minutes = abs(total_minutes)
         hours, minutes = divmod(absolute_minutes, 60)
         return f"UTC{sign}{hours:02d}:{minutes:02d}"
+
+
+def _normalize_order_management_base_url(base_url: str) -> str:
+    normalized = (base_url or "").strip()
+    if not normalized:
+        return "https://ds.utires.com/order_management/#order="
+    if "#order=" in normalized:
+        return normalized
+    if normalized.endswith("/order_management"):
+        return f"{normalized}/#order="
+    if normalized.endswith("/order_management/"):
+        return f"{normalized}#order="
+    if normalized.endswith("#order"):
+        return f"{normalized}="
+    if normalized.endswith("#"):
+        return f"{normalized}order="
+    if normalized.endswith("/"):
+        return f"{normalized}#order="
+    return f"{normalized}/#order="
