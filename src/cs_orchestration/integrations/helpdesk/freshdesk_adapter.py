@@ -26,7 +26,7 @@ class FreshdeskAdapter:
     def apply_update(self, update: HelpdeskUpdate) -> HelpdeskUpdate:
         request_url = f"{self.base_url}/api/v2/tickets/{update.ticket_id}/notes"
         payload = {
-            "body": self._note_html(update.private_note),
+            "body": self._note_html(update),
             "private": True,
         }
         self.last_request_debug = {
@@ -63,5 +63,14 @@ class FreshdeskAdapter:
         return update.model_copy(update={"metadata": metadata})
 
     @staticmethod
-    def _note_html(text: str) -> str:
-        return "<div>" + escape(text).replace("\n", "<br />") + "</div>"
+    def _note_html(update: HelpdeskUpdate) -> str:
+        note_html = escape(update.private_note).replace("\n", "<br />")
+        order_link = update.custom_fields.get("order_link")
+        if order_link:
+            safe_url = escape(str(order_link), quote=True)
+            note_html = (
+                f"{note_html}"
+                "<br /><br />"
+                f'Sales order: <a href="{safe_url}" target="_blank" rel="noopener noreferrer">{safe_url}</a>'
+            )
+        return f"<div>{note_html}</div>"

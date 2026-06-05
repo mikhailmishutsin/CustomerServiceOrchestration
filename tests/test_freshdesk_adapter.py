@@ -32,6 +32,9 @@ def test_freshdesk_adapter_posts_private_note_and_returns_metadata() -> None:
         HelpdeskUpdate(
             ticket_id="12345",
             private_note="Line one\nLine two",
+            custom_fields={
+                "order_link": "https://ds.utires.com/order_management/#order=wlm-123"
+            },
             metadata={"operation": "recent_orders_by_contact_or_reference"},
         )
     )
@@ -43,6 +46,8 @@ def test_freshdesk_adapter_posts_private_note_and_returns_metadata() -> None:
     assert '"private":true' in str(captured["body"]).replace(" ", "")
     assert "&lt;" not in str(captured["body"])
     assert "<br />" in str(captured["body"])
+    assert "Sales order:" in str(captured["body"])
+    assert "https://ds.utires.com/order_management/#order=wlm-123" in str(captured["body"])
     assert update.metadata["freshdesk"]["note_id"] == 98765
     assert update.metadata["freshdesk"]["ticket_id"] == 12345
     assert update.metadata["freshdesk"]["private"] is True
