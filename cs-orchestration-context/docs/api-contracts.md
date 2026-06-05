@@ -146,6 +146,12 @@ Payload:
 ```
 
 The note body includes a clickable Sales Order link when `custom_fields.order_link` exists.
+When structured matched order snapshots exist, the Freshdesk note uses a richer HTML layout:
+- latest order section
+- clickable Sales Order link near the latest order
+- detailed tracking section for latest order only
+- clickable FedEx tracking links when `tracking_url` exists
+- other recent orders table that excludes the latest order
 
 ## OMS `search_orders`
 
@@ -380,6 +386,7 @@ Important fields:
     {
       "carrier": "FedEx",
       "tracking_number": "999999999999",
+      "tracking_url": "https://www.fedex.com/fedextrack/?trknbr=999999999999",
       "tracking_status": "Delivered",
       "tracking_description": "Delivered",
       "raw_status_code": "DL",

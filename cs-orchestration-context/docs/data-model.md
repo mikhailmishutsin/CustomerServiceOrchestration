@@ -54,6 +54,7 @@ Fields:
 Fields:
 - carrier
 - tracking_number
+- tracking_url in external snapshots when supported for the carrier
 - child_tracking_numbers
 - tracking_status
 - tracking_description
@@ -132,6 +133,7 @@ Important metadata fields used by current workflows:
 - `lookup_used`
 - `lookup_attempts`
 - `freshdesk` when a Freshdesk note is created
+- `matched_orders` serialized snapshots for channel-specific renderers
 
 Contact match values:
 - `matched_by=contact_exact` when phone and email matched together.

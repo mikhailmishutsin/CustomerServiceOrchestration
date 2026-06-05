@@ -152,6 +152,8 @@ class EnrichmentResult(BaseModel):
 class ShipmentSnapshot(BaseModel):
     carrier: str | None = None
     tracking_number: str | None = None
+    tracking_url: str | None = None
+    child_tracking_numbers: list[str] = Field(default_factory=list)
     tracking_status: str | None = None
     tracking_details: str | None = None
     eta: str | None = None

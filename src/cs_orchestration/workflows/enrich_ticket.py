@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from typing import Callable, Literal
+from urllib.parse import quote
 
 from cs_orchestration.domain.models import (
     Customer,
@@ -224,6 +225,7 @@ class EnrichTicketWithOrdersWorkflow:
             warnings.append(
                 "Multiple recent orders found. Ask for the last 4 digits of the order number to confirm the correct order."
             )
+        order_snapshots = [self._build_order_snapshot(order) for order in orders]
 
         return EnrichmentResponse(
             source_system=request.source_system,
@@ -233,7 +235,7 @@ class EnrichTicketWithOrdersWorkflow:
             normalized_case_type=self._normalize_case_type(request),
             match_status=match_status,
             matched_order_count=total_matching_orders,
-            matched_orders=[self._build_order_snapshot(order) for order in orders],
+            matched_orders=order_snapshots,
             result=EnrichmentResult(
                 order_summary=summary.short_summary,
                 private_note=private_note,
@@ -274,6 +276,9 @@ class EnrichTicketWithOrdersWorkflow:
                     "filter_mode": filter_mode,
                 },
                 "lookup_attempts": lookup_attempts,
+                "matched_orders": [
+                    snapshot.model_dump(mode="json") for snapshot in order_snapshots
+                ],
                 "debug": {
                     "order_business_request": getattr(
                         self.oms_client, "last_request_debug", None
@@ -422,6 +427,11 @@ class EnrichTicketWithOrdersWorkflow:
                 ShipmentSnapshot(
                     carrier=shipment.carrier,
                     tracking_number=shipment.tracking_number,
+                    tracking_url=self._tracking_url(
+                        shipment.carrier,
+                        shipment.tracking_number,
+                    ),
+                    child_tracking_numbers=shipment.child_tracking_numbers,
                     tracking_status=shipment.tracking_status,
                     tracking_details=shipment.tracking_description,
                     eta=self._format_datetime_range(
@@ -434,6 +444,16 @@ class EnrichTicketWithOrdersWorkflow:
                 for shipment in order.shipments
             ],
         )
+
+    @staticmethod
+    def _tracking_url(carrier: str | None, tracking_number: str | None) -> str | None:
+        if not carrier or not tracking_number:
+            return None
+        normalized_carrier = carrier.strip().lower()
+        safe_tracking_number = quote(tracking_number.strip())
+        if "fedex" in normalized_carrier:
+            return f"https://www.fedex.com/fedextrack/?trknbr={safe_tracking_number}"
+        return None
 
     @staticmethod
     def _validate_lookup(request: EnrichmentRequest) -> None:

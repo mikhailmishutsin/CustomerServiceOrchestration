@@ -31,6 +31,11 @@ Current implementation:
 - Authentication uses `FRESHDESK_API_KEY` as Freshdesk Basic auth username and `X` as password.
 - Payload uses Freshdesk `body` plus `private=true`.
 - The adapter converts plain-text notes into HTML and appends a clickable Sales Order link when `custom_fields.order_link` exists.
+- The adapter uses a Freshdesk-specific HTML renderer when structured `metadata.matched_orders` is available.
+- The rendered Freshdesk note shows the latest order first, then detailed tracking for the latest order, then other recent orders.
+- The latest order is not duplicated inside the other recent orders section.
+- Sales Order links are rendered near the latest order.
+- FedEx tracking numbers are clickable when `tracking_url` is available.
 - Freshdesk response metadata is attached under `metadata.freshdesk`.
 
 ## Common field examples

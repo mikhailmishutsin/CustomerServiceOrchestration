@@ -52,3 +52,85 @@ def test_freshdesk_adapter_posts_private_note_and_returns_metadata() -> None:
     assert update.metadata["freshdesk"]["ticket_id"] == 12345
     assert update.metadata["freshdesk"]["private"] is True
     assert update.metadata["freshdesk"]["status_code"] == 201
+
+
+def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = request.content.decode("utf-8")
+        return httpx.Response(
+            201,
+            json={
+                "id": 98765,
+                "ticket_id": 12345,
+                "private": True,
+            },
+        )
+
+    adapter = FreshdeskAdapter(
+        base_url="https://example.freshdesk.com",
+        api_key="freshdesk-key",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    adapter.apply_update(
+        HelpdeskUpdate(
+            ticket_id="12345",
+            private_note="Plain fallback note should not drive structured rendering",
+            metadata={
+                "match_quality": "exact_contact_match",
+                "matched_orders": [
+                    {
+                        "order_reference": "wlm-latest",
+                        "order_date": "Jun 01, 2026, 10:00 AM ET",
+                        "marketplace": "walmart_main",
+                        "customer": {
+                            "name": "John Customer",
+                            "email": "customer@example.com",
+                            "phone": "5551234567",
+                        },
+                        "order_link": "https://ds.utires.com/order_management/#order=wlm-latest",
+                        "shipments": [
+                            {
+                                "carrier": "FedEx",
+                                "tracking_number": "999999999999",
+                                "tracking_url": "https://www.fedex.com/fedextrack/?trknbr=999999999999",
+                                "tracking_status": "Delivered",
+                                "tracking_details": "Delivered",
+                                "eta": "Jun 03, 2026, 9:00 AM - 5:00 PM ET",
+                                "first_scan_date": "Jun 02, 2026, 1:34 PM ET",
+                                "delivered_at": "Jun 03, 2026, 2:12 PM ET",
+                                "child_tracking_numbers": [],
+                            }
+                        ],
+                    },
+                    {
+                        "order_reference": "wlm-older",
+                        "order_date": "May 28, 2026, 2:00 PM ET",
+                        "marketplace": "ebay",
+                        "customer": {},
+                        "order_link": "https://ds.utires.com/order_management/#order=wlm-older",
+                        "shipments": [
+                            {
+                                "tracking_status": "In transit",
+                            }
+                        ],
+                    },
+                ],
+            },
+        )
+    )
+
+    body = str(captured["body"])
+    assert "Latest order" in body
+    assert "Tracking" in body
+    assert "Other recent orders" in body
+    assert "Open in OMS" in body
+    assert "https://ds.utires.com/order_management/#order=wlm-latest" in body
+    assert "https://www.fedex.com/fedextrack/?trknbr=999999999999" in body
+    assert body.index("wlm-latest") < body.index("Tracking")
+    assert body.index("Tracking") < body.index("Other recent orders")
+    other_orders_html = body[body.index("Other recent orders"):]
+    assert "wlm-latest" not in other_orders_html
+    assert "wlm-older" in body

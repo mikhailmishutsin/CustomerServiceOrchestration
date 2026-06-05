@@ -206,9 +206,15 @@ def test_generic_enrichment_request_can_search_by_order_reference() -> None:
     assert response.matched_orders[0].marketplace == "walmart_main"
     assert response.matched_orders[0].customer.email == "customer@example.com"
     assert response.matched_orders[0].shipments[0].tracking_status == "Delivered"
+    assert response.matched_orders[0].shipments[0].tracking_url == (
+        "https://www.fedex.com/fedextrack/?trknbr=999999999999"
+    )
     assert response.matched_orders[0].order_date == "May 12, 2026, 9:20 PM UTC"
     assert response.matched_orders[0].shipments[0].eta == "May 15, 2026, 12:00 AM UTC"
     assert response.matched_orders[0].shipments[0].first_scan_date == "May 15, 2026, 1:34 PM ET"
+    assert response.metadata["matched_orders"][0]["shipments"][0]["tracking_url"] == (
+        "https://www.fedex.com/fedextrack/?trknbr=999999999999"
+    )
 
 
 def test_unknown_case_type_does_not_block_wismo_flow() -> None:
