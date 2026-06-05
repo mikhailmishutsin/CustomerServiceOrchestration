@@ -120,45 +120,56 @@ def _extract_shipments(details: dict[str, Any]) -> list[Shipment]:
             if not tracking_information:
                 continue
 
-            shipment = _normalize_tracking_information(tracking_information)
-            key = (shipment.carrier, shipment.tracking_number)
-            if key not in seen:
-                seen.add(key)
-                shipments.append(shipment)
+            for shipment in _normalize_tracking_information(tracking_information):
+                key = (shipment.carrier, shipment.tracking_number)
+                if key not in seen:
+                    seen.add(key)
+                    shipments.append(shipment)
 
     return shipments
 
 
-def _normalize_tracking_information(raw_tracking: dict[str, Any]) -> Shipment:
-    tracking_number = raw_tracking.get("master_tracking_number")
+def _normalize_tracking_information(raw_tracking: dict[str, Any]) -> list[Shipment]:
+    master_tracking_number = raw_tracking.get("master_tracking_number")
+    child_tracking_numbers = raw_tracking.get("child_tracking_numbers") or []
     tracking_statuses = raw_tracking.get("tracking_status") or {}
-    status_payload = tracking_statuses.get(tracking_number)
-    if status_payload is None and tracking_statuses:
-        status_payload = next(iter(tracking_statuses.values()))
+    carrier = raw_tracking.get("carrier")
+    shipments: list[Shipment] = []
 
-    if status_payload:
-        return Shipment(
-            carrier=raw_tracking.get("carrier"),
-            tracking_number=tracking_number or status_payload.get("tracking_number"),
-            child_tracking_numbers=raw_tracking.get("child_tracking_numbers") or [],
-            tracking_status=status_payload.get("status"),
-            tracking_description=status_payload.get("description"),
-            raw_status_code=status_payload.get("status_code"),
-            eta_start=status_payload.get("estimated_delivery_window_begins") or None,
-            eta_end=status_payload.get("estimated_delivery_window_ends") or None,
-            ship_date=status_payload.get("ship_date") or None,
-            actual_pickup_date=status_payload.get("actual_pickup_date") or None,
-            first_scan_date=status_payload.get("first_scan_date") or None,
-            delivered_at=status_payload.get("delivery_date") or None,
-            tracking_status_source="embedded_expand",
+    if tracking_statuses:
+        for status_key, status_payload in tracking_statuses.items():
+            tracking_number = status_payload.get("tracking_number") or status_key
+            shipments.append(
+                Shipment(
+                    carrier=carrier,
+                    tracking_number=tracking_number,
+                    child_tracking_numbers=(
+                        child_tracking_numbers
+                        if tracking_number == master_tracking_number
+                        else []
+                    ),
+                    tracking_status=status_payload.get("status"),
+                    tracking_description=status_payload.get("description"),
+                    raw_status_code=status_payload.get("status_code"),
+                    eta_start=status_payload.get("estimated_delivery_window_begins") or None,
+                    eta_end=status_payload.get("estimated_delivery_window_ends") or None,
+                    ship_date=status_payload.get("ship_date") or None,
+                    actual_pickup_date=status_payload.get("actual_pickup_date") or None,
+                    first_scan_date=status_payload.get("first_scan_date") or None,
+                    delivered_at=status_payload.get("delivery_date") or None,
+                    tracking_status_source="embedded_expand",
+                )
+            )
+        return shipments
+
+    return [
+        Shipment(
+            carrier=carrier,
+            tracking_number=master_tracking_number,
+            child_tracking_numbers=child_tracking_numbers,
+            tracking_status_source="not_available",
         )
-
-    return Shipment(
-        carrier=raw_tracking.get("carrier"),
-        tracking_number=tracking_number,
-        child_tracking_numbers=raw_tracking.get("child_tracking_numbers") or [],
-        tracking_status_source="not_available",
-    )
+    ]
 
 
 def redact_secret(url: str | None) -> str | None:

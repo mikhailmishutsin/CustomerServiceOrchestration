@@ -47,6 +47,10 @@ def test_freshdesk_adapter_posts_private_note_and_returns_metadata() -> None:
     assert "&lt;" not in str(captured["body"])
     assert "<br />" in str(captured["body"])
     assert "Sales order:" in str(captured["body"])
+    assert (
+        'href=\\"https://ds.utires.com/order_management/#order=wlm-123\\"'
+        in str(captured["body"])
+    )
     assert "https://ds.utires.com/order_management/#order=wlm-123" in str(captured["body"])
     assert update.metadata["freshdesk"]["note_id"] == 98765
     assert update.metadata["freshdesk"]["ticket_id"] == 12345
@@ -127,7 +131,11 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
     assert "Latest order:" in body
     assert "Tracking" in body
     assert "Other recent orders" in body
-    assert "Open in OMS" in body
+    assert ">wlm-latest</a>" in body
+    assert (
+        'href=\\"https://ds.utires.com/order_management/#order=wlm-latest\\"'
+        in body
+    )
     assert "https://ds.utires.com/order_management/#order=wlm-latest" in body
     assert "https://www.fedex.com/fedextrack/?trknbr=999999999999" in body
     assert body.index("wlm-latest") < body.index("Tracking")

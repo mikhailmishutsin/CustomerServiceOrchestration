@@ -63,8 +63,7 @@ def _latest_order_section(order: dict[str, Any]) -> str:
     if order_link:
         safe_url = _safe_text(order_link)
         order_reference_html = (
-            f"{order_reference} "
-            f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer">Open in OMS</a>'
+            f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer">{order_reference}</a>'
         )
 
     details = [
