@@ -129,9 +129,10 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
     body = str(captured["body"])
     assert "Order context" in body
     assert "Latest order:" in body
+    assert "OMS link:" in body
     assert "Tracking" in body
     assert "Other recent orders" in body
-    assert ">wlm-latest</a>" in body
+    assert ">https://ds.utires.com/order_management/#order=wlm-latest</a>" in body
     assert (
         'href=\\"https://ds.utires.com/order_management/#order=wlm-latest\\"'
         in body

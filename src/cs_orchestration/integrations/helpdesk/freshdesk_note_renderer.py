@@ -58,13 +58,7 @@ def _match_notice(update: HelpdeskUpdate) -> str:
 def _latest_order_section(order: dict[str, Any]) -> str:
     customer = order.get("customer") or {}
     order_reference = _safe_text(_order_reference(order))
-    order_reference_html = order_reference
     order_link = order.get("order_link")
-    if order_link:
-        safe_url = _safe_text(order_link)
-        order_reference_html = (
-            f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer">{order_reference}</a>'
-        )
 
     details = [
         f"<strong>Date:</strong> {_safe_text(order.get('order_date'))}"
@@ -77,10 +71,18 @@ def _latest_order_section(order: dict[str, Any]) -> str:
         if _customer_text(customer)
         else None,
     ]
+    link_line = ""
+    if order_link:
+        safe_url = _safe_text(order_link)
+        link_line = (
+            f'<div style="margin-top: 3px;"><strong>OMS link:</strong> '
+            f'<a href="{safe_url}">{safe_url}</a></div>'
+        )
     return (
         '<div style="margin: 6px 0 10px;">'
-        f"<div><strong>Latest order:</strong> {order_reference_html}</div>"
+        f"<div><strong>Latest order:</strong> {order_reference}</div>"
         f'<div style="margin-top: 3px;">{" &nbsp; ".join(item for item in details if item)}</div>'
+        f"{link_line}"
         "</div>"
     )
 
