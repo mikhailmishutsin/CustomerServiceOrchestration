@@ -12,6 +12,8 @@ class MockOmsClient:
     def __init__(self, fixture_path: Path) -> None:
         self.fixture_path = fixture_path
         self.last_request: dict[str, Any] | None = None
+        self.last_request_debug: dict[str, Any] | None = None
+        self.request_history: list[dict[str, Any]] = []
 
     def search_orders(
         self,
@@ -39,6 +41,14 @@ class MockOmsClient:
             "expand": expand,
             "limit": limit,
         }
+        self.request_history.append(self.last_request.copy())
+        self.last_request_debug = {
+            "service": "mock_order_business_api",
+            "operation": "search_orders",
+            "method": "MOCK",
+            "fixture_path": str(self.fixture_path),
+            "query": self.last_request,
+        }
         with self.fixture_path.open("r", encoding="utf-8") as fixture:
             payload = json.load(fixture)
 
@@ -46,3 +56,12 @@ class MockOmsClient:
             payload["orders"] = payload.get("orders", [])[:limit]
             payload["order_count"] = len(payload["orders"])
         return payload
+
+    def get_order_details(
+        self,
+        *,
+        order_number: str,
+        expand: bool = True,
+    ) -> dict[str, Any]:
+        payload = self.search_orders(order_number=order_number, expand=expand, limit=1)
+        return payload["orders"][0].get("details") or payload["orders"][0]

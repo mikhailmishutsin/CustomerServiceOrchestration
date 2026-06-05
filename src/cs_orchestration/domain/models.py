@@ -23,6 +23,31 @@ class HelpdeskRequest(BaseModel):
     ticket: TicketContext
 
 
+class FreshdeskRecentOrdersRequest(BaseModel):
+    ticket_id: str
+    customer_phone: str | None = None
+    customer_email: str | None = None
+    order_number: str | None = None
+
+
+class LookupCriteria(BaseModel):
+    order_reference: str | None = None
+    customer_email: str | None = None
+    customer_phone: str | None = None
+    customer_name: str | None = None
+
+
+class EnrichmentRequest(BaseModel):
+    source_system: str
+    source_record_id: str | None = None
+    request_type: str | None = None
+    case_type: str | None = None
+    max_records: int | None = None
+    lookup: LookupCriteria = Field(default_factory=LookupCriteria)
+    ticket: TicketContext = Field(default_factory=TicketContext)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class ShippingAddress(BaseModel):
     line1: str | None = None
     line2: str | None = None
@@ -97,6 +122,9 @@ class SupportSummary(BaseModel):
     short_summary: str
     private_note: str
     latest_order_link: str | None = None
+    latest_delivery_status: str | None = None
+    latest_delivery_eta: str | None = None
+    latest_order_date: str | None = None
     confidence: str
     warnings: list[str] = Field(default_factory=list)
 
@@ -109,4 +137,45 @@ class HelpdeskUpdate(BaseModel):
     tags: list[str] = Field(default_factory=list)
     priority: str | None = None
     type: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class EnrichmentResult(BaseModel):
+    order_summary: str
+    private_note: str
+    order_link: str | None = None
+    delivery_status: str | None = None
+    delivery_eta: str | None = None
+    order_date: str | None = None
+
+
+class ShipmentSnapshot(BaseModel):
+    carrier: str | None = None
+    tracking_number: str | None = None
+    tracking_status: str | None = None
+    tracking_details: str | None = None
+    eta: str | None = None
+    first_scan_date: str | None = None
+    delivered_at: str | None = None
+
+
+class OrderSnapshot(BaseModel):
+    order_reference: str
+    order_date: str | None = None
+    marketplace: str | None = None
+    customer: Customer = Field(default_factory=Customer)
+    order_link: str | None = None
+    shipments: list[ShipmentSnapshot] = Field(default_factory=list)
+
+
+class EnrichmentResponse(BaseModel):
+    source_system: str
+    source_record_id: str | None = None
+    request_type: str | None = None
+    case_type: str | None = None
+    normalized_case_type: str | None = None
+    match_status: str
+    matched_order_count: int
+    matched_orders: list[OrderSnapshot] = Field(default_factory=list)
+    result: EnrichmentResult
     metadata: dict[str, Any] = Field(default_factory=dict)

@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: customer-service-orchestration
+    runtime: python
+    buildCommand: python -m pip install -e .
+    startCommand: python -m uvicorn cs_orchestration.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: INTEGRATION_MODE
+        value: real
+      - key: DRY_RUN
+        value: "true"
+      - key: EXPOSE_DOCS
+        value: "false"
+      - key: EXPOSE_DEBUG_ERRORS
+        value: "false"
+      - key: INBOUND_API_KEY
+        sync: false
+      - key: ORDER_BUSINESS_API_BASE_URL
+        sync: false
+      - key: ORDER_BUSINESS_API_USER
+        sync: false
+      - key: ORDER_BUSINESS_API_PASSWORD
+        sync: false
+      - key: ORDER_BUSINESS_API_SECRET_KEY
+        sync: false
+      - key: ORDER_BUSINESS_API_AUTH_MODE
+        value: basic_query_secret
+      - key: FRESHDESK_BASE_URL
+        sync: false
+      - key: FRESHDESK_API_KEY
+        sync: false
+      - key: ORDER_MANAGEMENT_BASE_URL
+        value: https://ds.utires.com/order_management/#order=

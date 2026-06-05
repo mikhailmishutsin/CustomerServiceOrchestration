@@ -29,6 +29,21 @@ Expected normalized input:
 ### Purpose
 Find recent orders by customer/order identifiers. This endpoint can now also return expanded order details and tracking status.
 
+### Endpoint and credentials
+`search_orders` is an operation on the Order Business API.
+
+Expected configuration shape:
+
+```text
+ORDER_BUSINESS_API_BASE_URL
+ORDER_BUSINESS_API_USER
+ORDER_BUSINESS_API_PASSWORD
+ORDER_BUSINESS_API_SECRET_KEY
+```
+
+`search_orders` and `get_order_details` use the same Order Business API base URL and service user.
+The login/password authorize access to the system; `secret_key` is still appended to the request URL.
+
 ### Supported search criteria
 Current known criteria:
 
@@ -106,6 +121,21 @@ examples/oms-search-orders-response-expanded-sanitized.json
 ### Purpose
 Fetch full order details, lines, purchase order lines, supplier info, carrier info, tracking numbers, and optionally tracking status.
 
+### Endpoint and credentials
+`get_order_details` is an operation on the Order Business API.
+
+Expected configuration shape:
+
+```text
+ORDER_BUSINESS_API_BASE_URL
+ORDER_BUSINESS_API_USER
+ORDER_BUSINESS_API_PASSWORD
+ORDER_BUSINESS_API_SECRET_KEY
+```
+
+`search_orders` and `get_order_details` use the same Order Business API base URL and service user.
+The login/password authorize access to the system; `secret_key` is still appended to the request URL.
+
 ### Expand mode
 `get_order_details` supports `expand=true`.
 
@@ -154,6 +184,20 @@ Tracking status can come from two places:
 2. Fetched separately from `tracking_status_urls` when expand is false or embedded status is missing.
 
 Parser should support both.
+
+### Endpoint and credentials
+Fallback tracking should be configured as the FedEx API integration.
+
+Expected configuration shape:
+
+```text
+FEDEX_API_BASE_URL
+FEDEX_API_USER
+FEDEX_API_PASSWORD
+FEDEX_API_SECRET_KEY
+```
+
+The FedEx API client must not be called when embedded `tracking_status` is already available from Order Business API `expand=true`.
 
 Important fields:
 

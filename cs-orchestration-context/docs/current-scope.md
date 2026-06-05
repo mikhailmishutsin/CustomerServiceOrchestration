@@ -22,15 +22,25 @@ Minimum useful fields:
 The orchestration layer should:
 1. Receive Helpdesk request.
 2. Extract customer identifiers.
-3. Call OMS search API with optional `filter_mode` and `expand=true`.
+3. Call Order Business API `search_orders` with optional `filter_mode` and `expand=true`.
 4. Get last X matching orders.
 5. If expanded details are present, use them directly.
-6. If expanded details are missing, call `get_order_details`, preferably with `expand=true`.
-7. Normalize raw OMS response.
-8. Prepare order/shipment summary.
-9. Build Helpdesk update payload.
-10. In dry-run mode, return the payload without sending it.
-11. In real mode, update Helpdesk.
+6. If expanded details are missing, call Order Business API `get_order_details`, preferably with `expand=true`.
+7. If embedded tracking status is missing, use the FedEx API fallback only when a tracking reference/URL is available.
+8. Normalize raw OMS response.
+9. Prepare order/shipment summary.
+10. Build Helpdesk update payload.
+11. In dry-run mode, return the payload without sending it.
+12. In real mode, update Helpdesk.
+
+### Integration boundaries
+First milestone should already design for separate URLs and service users:
+
+- Order Business API for order search and order details
+- FedEx API for tracking fallback
+- Helpdesk/Freshdesk
+
+The first implementation can still use mock mode, but real mode should not assume the FedEx API uses the same URL or service user as the Order Business API.
 
 ### Output to Helpdesk
 At minimum:
