@@ -46,6 +46,10 @@ def build_support_summary(request: HelpdeskRequest, orders: list[Order]) -> Supp
         if order_shipment:
             line = f"{line} | Shipment: {order_shipment}"
         note_lines.append(line)
+    latest_tracking_lines = _latest_order_tracking_lines(latest)
+    if latest_tracking_lines:
+        note_lines.extend(["", "Latest order tracking details:"])
+        note_lines.extend(latest_tracking_lines)
 
     warnings = []
     if any(
@@ -87,6 +91,40 @@ def _shipment_text(shipment: object | None) -> str | None:
     if eta:
         pieces.append(f"ETA: {eta}")
     return " ".join(pieces) if pieces else None
+
+
+def _latest_order_tracking_lines(order: Order) -> list[str]:
+    lines: list[str] = []
+    for index, shipment in enumerate(order.shipments, start=1):
+        pieces = [f"- Tracking {index}"]
+        tracking_number = getattr(shipment, "tracking_number", None)
+        if tracking_number:
+            pieces.append(f"Number: {tracking_number}")
+        carrier = getattr(shipment, "carrier", None)
+        if carrier:
+            pieces.append(f"Carrier: {carrier}")
+        status = _display_delivery_status(shipment)
+        if status:
+            pieces.append(f"Status: {status}")
+        tracking_details = getattr(shipment, "tracking_description", None)
+        if tracking_details and tracking_details != status:
+            pieces.append(f"Details: {tracking_details}")
+        eta = _display_eta(shipment)
+        if eta:
+            pieces.append(f"ETA: {eta}")
+        first_scan = _format_datetime(getattr(shipment, "first_scan_date", None))
+        if first_scan:
+            pieces.append(f"First FedEx scan: {first_scan}")
+        delivered_at = _format_datetime(getattr(shipment, "delivered_at", None))
+        if delivered_at:
+            pieces.append(f"Delivered: {delivered_at}")
+        child_tracking_numbers = getattr(shipment, "child_tracking_numbers", [])
+        if child_tracking_numbers:
+            pieces.append(
+                "Child tracking numbers: " + ", ".join(child_tracking_numbers)
+            )
+        lines.append(" | ".join(pieces))
+    return lines
 
 
 def _latest_line(order: Order, shipment: object | None) -> str:
