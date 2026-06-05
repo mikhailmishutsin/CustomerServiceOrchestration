@@ -12,8 +12,8 @@ def render_freshdesk_private_note(update: HelpdeskUpdate) -> str:
     latest_order = orders[0]
     other_orders = orders[1:]
     sections = [
-        '<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.45;">',
-        _heading("Order enrichment result"),
+        '<div style="font-family: Arial, sans-serif; font-size: 13px; line-height: 1.38;">',
+        '<div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">Order context</div>',
         _match_notice(update),
         _latest_order_section(latest_order),
         _tracking_section(latest_order),
@@ -46,7 +46,7 @@ def _match_notice(update: HelpdeskUpdate) -> str:
     matched_on = _humanize_fields(details.get("matched_on") or [])
     mismatched_on = _humanize_fields(details.get("mismatched_on") or [])
     return (
-        '<div style="padding: 10px 12px; margin: 10px 0 14px; '
+        '<div style="padding: 8px 10px; margin: 8px 0 10px; '
         'border-left: 4px solid #d97706; background: #fff7ed;">'
         "<strong>No exact contact match found.</strong><br />"
         f"Partial match: matched on {_safe_text(matched_on)}, "
@@ -57,35 +57,44 @@ def _match_notice(update: HelpdeskUpdate) -> str:
 
 def _latest_order_section(order: dict[str, Any]) -> str:
     customer = order.get("customer") or {}
-    rows = [
-        ("SO", _order_reference(order)),
-        ("Order date", order.get("order_date")),
-        ("Marketplace", order.get("marketplace")),
-        ("Customer", _customer_text(customer)),
-    ]
+    order_reference = _safe_text(_order_reference(order))
+    order_reference_html = order_reference
     order_link = order.get("order_link")
     if order_link:
         safe_url = _safe_text(order_link)
-        rows.append(
-            (
-                "Sales Order",
-                f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer">Open in OMS</a>',
-            )
+        order_reference_html = (
+            f"{order_reference} "
+            f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer">Open in OMS</a>'
         )
+
+    details = [
+        f"<strong>Date:</strong> {_safe_text(order.get('order_date'))}"
+        if order.get("order_date")
+        else None,
+        f"<strong>Marketplace:</strong> {_safe_text(order.get('marketplace'))}"
+        if order.get("marketplace")
+        else None,
+        f"<strong>Customer:</strong> {_safe_text(_customer_text(customer))}"
+        if _customer_text(customer)
+        else None,
+    ]
     return (
-        _heading("Latest order")
-        + '<table style="border-collapse: collapse; margin-bottom: 14px;">'
-        + "".join(_table_row(label, value) for label, value in rows if value)
-        + "</table>"
+        '<div style="margin: 6px 0 10px;">'
+        f"<div><strong>Latest order:</strong> {order_reference_html}</div>"
+        f'<div style="margin-top: 3px;">{" &nbsp; ".join(item for item in details if item)}</div>'
+        "</div>"
     )
 
 
 def _tracking_section(order: dict[str, Any]) -> str:
     shipments = order.get("shipments") or []
     if not shipments:
-        return _heading("Tracking") + "<p>No shipment tracking details available.</p>"
+        return (
+            '<div style="margin: 8px 0;"><strong>Tracking:</strong> '
+            "No shipment tracking details available.</div>"
+        )
 
-    cards = []
+    lines = []
     for index, shipment in enumerate(shipments, start=1):
         tracking_number = shipment.get("tracking_number")
         tracking_url = shipment.get("tracking_url")
@@ -97,29 +106,40 @@ def _tracking_section(order: dict[str, Any]) -> str:
         else:
             tracking_value = _safe_text(tracking_number or "unknown")
 
-        rows = [
-            ("Tracking number", tracking_value),
-            ("Carrier", shipment.get("carrier")),
-            ("Status", shipment.get("tracking_status")),
-            ("Details", shipment.get("tracking_details")),
-            ("ETA", shipment.get("eta")),
-            ("First FedEx scan", shipment.get("first_scan_date")),
-            ("Delivered", shipment.get("delivered_at")),
-            (
-                "Child tracking numbers",
-                ", ".join(shipment.get("child_tracking_numbers") or []),
-            ),
+        details = [
+            _safe_text(shipment.get("carrier")) if shipment.get("carrier") else None,
+            f"Status: {_safe_text(shipment.get('tracking_status'))}"
+            if shipment.get("tracking_status")
+            else None,
+            f"Details: {_safe_text(shipment.get('tracking_details'))}"
+            if shipment.get("tracking_details")
+            and shipment.get("tracking_details") != shipment.get("tracking_status")
+            else None,
+            f"ETA: {_safe_text(shipment.get('eta'))}" if shipment.get("eta") else None,
+            f"First scan: {_safe_text(shipment.get('first_scan_date'))}"
+            if shipment.get("first_scan_date")
+            else None,
+            f"Delivered: {_safe_text(shipment.get('delivered_at'))}"
+            if shipment.get("delivered_at")
+            else None,
+            "Child tracking: "
+            + _safe_text(", ".join(shipment.get("child_tracking_numbers") or []))
+            if shipment.get("child_tracking_numbers")
+            else None,
         ]
-        cards.append(
-            '<div style="border: 1px solid #ddd; border-radius: 6px; '
-            'padding: 10px 12px; margin: 8px 0;">'
-            f"<strong>Tracking {index}</strong>"
-            '<table style="border-collapse: collapse; margin-top: 6px;">'
-            + "".join(_table_row(label, value) for label, value in rows if value)
-            + "</table>"
+        label = "Tracking" if len(shipments) == 1 else f"Tracking {index}"
+        lines.append(
+            '<div style="margin: 3px 0;">'
+            f"<strong>{_safe_text(label)}:</strong> {tracking_value}"
+            f'<span style="margin-left: 8px;">{" &nbsp; ".join(item for item in details if item)}</span>'
             "</div>"
         )
-    return _heading("Tracking") + "".join(cards)
+    return (
+        '<div style="margin: 8px 0 12px;">'
+        '<div style="font-weight: 700; margin-bottom: 3px;">Tracking</div>'
+        + "".join(lines)
+        + "</div>"
+    )
 
 
 def _other_orders_section(orders: list[dict[str, Any]]) -> str:
@@ -137,28 +157,15 @@ def _other_orders_section(orders: list[dict[str, Any]]) -> str:
             "</tr>"
         )
     return (
-        _heading("Other recent orders")
-        + '<table style="border-collapse: collapse;">'
+        '<div style="font-weight: 700; margin: 10px 0 4px;">Other recent orders</div>'
+        + '<table style="border-collapse: collapse; font-size: 13px;">'
         + '<thead><tr><th style="text-align: left; padding-right: 10px;">SO</th>'
-        + '<th style="text-align: left; padding: 0 10px;">Order date</th>'
+        + '<th style="text-align: left; padding: 0 10px;">Date</th>'
         + '<th style="text-align: left; padding: 0 10px;">Marketplace</th>'
-        + '<th style="text-align: left; padding-left: 10px;">Shipment status</th>'
+        + '<th style="text-align: left; padding-left: 10px;">Status</th>'
         + "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
-    )
-
-
-def _heading(text: str) -> str:
-    return f'<h3 style="margin: 14px 0 8px;">{_safe_text(text)}</h3>'
-
-
-def _table_row(label: str, value: object) -> str:
-    return (
-        "<tr>"
-        f'<td style="font-weight: 600; padding: 3px 14px 3px 0;">{_safe_text(label)}</td>'
-        f'<td style="padding: 3px 0;">{value if _looks_like_html(value) else _safe_text(value)}</td>'
-        "</tr>"
     )
 
 
@@ -195,7 +202,3 @@ def _plain_text_to_html(text: str) -> str:
 
 def _safe_text(value: object) -> str:
     return escape(str(value), quote=True)
-
-
-def _looks_like_html(value: object) -> bool:
-    return isinstance(value, str) and value.startswith("<a ")
