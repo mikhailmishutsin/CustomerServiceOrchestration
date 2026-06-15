@@ -1,13 +1,19 @@
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
+import cs_orchestration.api.routes.enrichment as enrichment_routes
 from cs_orchestration.config.settings import settings
+from cs_orchestration.integrations.helpdesk.freshdesk_adapter import FreshdeskAdapter
+from cs_orchestration.integrations.oms.factory import build_order_business_client
 from cs_orchestration.main import app, create_app
 from cs_orchestration.ui import render_agent_preview
+from cs_orchestration.workflows.enrich_ticket import EnrichTicketWithOrdersWorkflow
 
 
 @pytest.fixture(autouse=True)
-def force_mock_mode_for_api_tests() -> None:
+def force_mock_mode_for_api_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     original_app_env = settings.app_env
     original_mode = settings.integration_mode
     original_inbound_api_key = settings.inbound_api_key
@@ -22,6 +28,7 @@ def force_mock_mode_for_api_tests() -> None:
     settings.dry_run = True
     settings.expose_docs = True
     settings.expose_debug_errors = True
+    monkeypatch.setattr(enrichment_routes, "_workflow", _fixed_clock_workflow)
     yield
     settings.app_env = original_app_env
     settings.integration_mode = original_mode
@@ -31,6 +38,21 @@ def force_mock_mode_for_api_tests() -> None:
     settings.expose_debug_errors = original_expose_debug_errors
     settings.freshdesk.base_url = original_freshdesk_base_url
     settings.freshdesk.api_key = original_freshdesk_api_key
+
+
+def _fixed_clock_workflow() -> EnrichTicketWithOrdersWorkflow:
+    helpdesk_adapter = None
+    if settings.freshdesk.base_url and settings.freshdesk.api_key:
+        helpdesk_adapter = FreshdeskAdapter(
+            base_url=settings.freshdesk.base_url,
+            api_key=settings.freshdesk.api_key,
+        )
+    return EnrichTicketWithOrdersWorkflow(
+        oms_client=build_order_business_client(settings),
+        helpdesk_adapter=helpdesk_adapter,
+        order_management_base_url=settings.order_management_base_url,
+        now_provider=lambda: datetime(2026, 6, 4, tzinfo=UTC),
+    )
 
 
 def test_agent_preview_ui_loads() -> None:
@@ -85,8 +107,8 @@ def test_enrich_ticket_endpoint_returns_dry_run_update() -> None:
     assert body["metadata"]["order_count"] == 1
     assert "Delivered" in body["private_note"]
     assert body["custom_fields"]["delivery_status"] == "Delivered"
-    assert body["custom_fields"]["delivery_eta"] == "May 15, 2026, 12:00 AM UTC"
-    assert body["custom_fields"]["order_date"] == "May 12, 2026, 9:20 PM UTC"
+    assert body["custom_fields"]["delivery_eta"] == "May 14, 2026, 8:00 PM ET"
+    assert body["custom_fields"]["order_date"] == "May 12, 2026, 5:20 PM ET"
     assert (
         body["custom_fields"]["order_link"]
         == "https://ds.utires.com/order_management/#order=wlm-000000000000000"
@@ -121,8 +143,8 @@ def test_generic_enrichment_endpoint_returns_structured_response() -> None:
     assert body["match_status"] == "single_match"
     assert body["matched_order_count"] == 1
     assert body["result"]["delivery_status"] == "Delivered"
-    assert body["result"]["delivery_eta"] == "May 15, 2026, 12:00 AM UTC"
-    assert body["result"]["order_date"] == "May 12, 2026, 9:20 PM UTC"
+    assert body["result"]["delivery_eta"] == "May 14, 2026, 8:00 PM ET"
+    assert body["result"]["order_date"] == "May 12, 2026, 5:20 PM ET"
     assert body["result"]["order_link"] == (
         "https://ds.utires.com/order_management/#order=wlm-000000000000000"
     )
@@ -132,7 +154,7 @@ def test_generic_enrichment_endpoint_returns_structured_response() -> None:
     assert body["matched_orders"][0]["marketplace"] == "walmart_main"
     assert body["matched_orders"][0]["customer"]["email"] == "customer@example.com"
     assert body["matched_orders"][0]["shipments"][0]["tracking_status"] == "Delivered"
-    assert body["matched_orders"][0]["shipments"][0]["eta"] == "May 15, 2026, 12:00 AM UTC"
+    assert body["matched_orders"][0]["shipments"][0]["eta"] == "May 14, 2026, 8:00 PM ET"
 
 
 def test_latest_order_by_contact_endpoint_returns_single_order() -> None:

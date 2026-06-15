@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Callable, Literal
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from cs_orchestration.domain.models import (
     Customer,
@@ -31,6 +32,7 @@ LookupStage = Literal[
     "order_reference",
     "customer_name",
 ]
+SUPPORT_TIME_ZONE = ZoneInfo("America/New_York")
 
 
 class EnrichTicketWithOrdersWorkflow:
@@ -675,11 +677,16 @@ class EnrichTicketWithOrdersWorkflow:
         dt = self._parse_datetime(value)
         if dt is None:
             return None
+        dt = dt.astimezone(SUPPORT_TIME_ZONE)
         return f"{dt.strftime('%b %d, %Y')}, {self._format_time(dt)} {self._tz_label(dt)}"
 
     def _format_datetime_range(self, start: str | None, end: str | None) -> str | None:
         start_dt = self._parse_datetime(start)
         end_dt = self._parse_datetime(end)
+        if start_dt:
+            start_dt = start_dt.astimezone(SUPPORT_TIME_ZONE)
+        if end_dt:
+            end_dt = end_dt.astimezone(SUPPORT_TIME_ZONE)
         if start_dt and end_dt:
             if self._tz_label(start_dt) == self._tz_label(end_dt) and start_dt.date() == end_dt.date():
                 return (
@@ -700,10 +707,10 @@ class EnrichTicketWithOrdersWorkflow:
 
     @staticmethod
     def _tz_label(dt: datetime) -> str:
+        if dt.tzinfo == SUPPORT_TIME_ZONE:
+            return "ET"
         offset = dt.utcoffset()
-        if offset in (None, timedelta(0)):
-            return "UTC"
-        if offset in (timedelta(hours=-4), timedelta(hours=-5)):
+        if offset is None:
             return "ET"
         total_minutes = int(offset.total_seconds() // 60)
         sign = "+" if total_minutes >= 0 else "-"

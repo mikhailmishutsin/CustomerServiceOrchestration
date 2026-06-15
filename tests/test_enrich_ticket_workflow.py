@@ -46,8 +46,8 @@ def test_workflow_returns_dry_run_helpdesk_update() -> None:
     assert update.metadata["order_count"] == 1
     assert "Latest order wlm-000000000000000" in update.custom_fields["order_summary"]
     assert update.custom_fields["delivery_status"] == "Delivered"
-    assert update.custom_fields["delivery_eta"] == "May 15, 2026, 12:00 AM UTC"
-    assert update.custom_fields["order_date"] == "May 12, 2026, 9:20 PM UTC"
+    assert update.custom_fields["delivery_eta"] == "May 14, 2026, 8:00 PM ET"
+    assert update.custom_fields["order_date"] == "May 12, 2026, 5:20 PM ET"
     assert (
         update.custom_fields["order_link"]
         == "https://ds.utires.com/order_management/#order=wlm-000000000000000"
@@ -209,8 +209,8 @@ def test_generic_enrichment_request_can_search_by_order_reference() -> None:
     assert response.matched_orders[0].shipments[0].tracking_url == (
         "https://www.fedex.com/fedextrack/?trknbr=999999999999"
     )
-    assert response.matched_orders[0].order_date == "May 12, 2026, 9:20 PM UTC"
-    assert response.matched_orders[0].shipments[0].eta == "May 15, 2026, 12:00 AM UTC"
+    assert response.matched_orders[0].order_date == "May 12, 2026, 5:20 PM ET"
+    assert response.matched_orders[0].shipments[0].eta == "May 14, 2026, 8:00 PM ET"
     assert response.matched_orders[0].shipments[0].first_scan_date == "May 15, 2026, 1:34 PM ET"
     assert response.metadata["matched_orders"][0]["shipments"][0]["tracking_url"] == (
         "https://www.fedex.com/fedextrack/?trknbr=999999999999"
