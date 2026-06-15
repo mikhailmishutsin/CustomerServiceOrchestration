@@ -1,4 +1,6 @@
+import logging
 from secrets import compare_digest
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
@@ -17,6 +19,9 @@ from cs_orchestration.integrations.helpdesk.freshdesk_adapter import (
 from cs_orchestration.integrations.oms.factory import build_order_business_client
 from cs_orchestration.integrations.oms.real_client import OrderBusinessApiError
 from cs_orchestration.workflows.enrich_ticket import EnrichTicketWithOrdersWorkflow
+
+
+logger = logging.getLogger(__name__)
 
 
 def _require_inbound_api_key(
@@ -161,14 +166,36 @@ def recent_orders_by_contact(request: EnrichmentRequest) -> EnrichmentResponse:
 
 @router.post("/freshdesk/recent-orders", response_model=HelpdeskUpdate)
 def freshdesk_recent_orders(request: FreshdeskRecentOrdersRequest) -> HelpdeskUpdate:
+    started = perf_counter()
+    logger.info(
+        "freshdesk_recent_orders.request_received ticket_id=%s dry_run=%s has_phone=%s has_email=%s has_order_number=%s",
+        request.ticket_id,
+        settings.dry_run,
+        bool(request.customer_phone),
+        bool(request.customer_email),
+        bool(request.order_number),
+    )
     workflow = _workflow()
     oms_client = workflow.oms_client
     try:
-        return workflow.run_freshdesk_recent_orders_update(
+        update = workflow.run_freshdesk_recent_orders_update(
             request,
             dry_run=settings.dry_run,
         )
+        logger.info(
+            "freshdesk_recent_orders.request_finished ticket_id=%s status=success duration_ms=%s matched_order_count=%s",
+            request.ticket_id,
+            round((perf_counter() - started) * 1000, 2),
+            update.metadata.get("order_count"),
+        )
+        return update
     except ValueError as exc:
+        logger.warning(
+            "freshdesk_recent_orders.request_failed ticket_id=%s status=bad_request duration_ms=%s error=%s",
+            request.ticket_id,
+            round((perf_counter() - started) * 1000, 2),
+            str(exc),
+        )
         raise HTTPException(
             status_code=400,
             detail=_error_detail(
@@ -179,6 +206,11 @@ def freshdesk_recent_orders(request: FreshdeskRecentOrdersRequest) -> HelpdeskUp
             ),
         ) from None
     except OrderBusinessApiError as exc:
+        logger.exception(
+            "freshdesk_recent_orders.request_failed ticket_id=%s status=oms_error duration_ms=%s",
+            request.ticket_id,
+            round((perf_counter() - started) * 1000, 2),
+        )
         raise HTTPException(
             status_code=502,
             detail=_error_detail(
@@ -191,6 +223,11 @@ def freshdesk_recent_orders(request: FreshdeskRecentOrdersRequest) -> HelpdeskUp
             ),
         ) from None
     except FreshdeskApiError as exc:
+        logger.exception(
+            "freshdesk_recent_orders.request_failed ticket_id=%s status=freshdesk_error duration_ms=%s",
+            request.ticket_id,
+            round((perf_counter() - started) * 1000, 2),
+        )
         raise HTTPException(
             status_code=502,
             detail=_error_detail(

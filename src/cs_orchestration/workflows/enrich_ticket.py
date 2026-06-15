@@ -1,4 +1,6 @@
+import logging
 from datetime import UTC, datetime, timedelta
+from time import perf_counter
 from typing import Callable, Literal
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
@@ -33,6 +35,7 @@ LookupStage = Literal[
     "customer_name",
 ]
 SUPPORT_TIME_ZONE = ZoneInfo("America/New_York")
+logger = logging.getLogger(__name__)
 
 
 class EnrichTicketWithOrdersWorkflow:
@@ -105,19 +108,80 @@ class EnrichTicketWithOrdersWorkflow:
         max_records: int = 3,
         filter_mode: FilterMode | None = None,
     ) -> HelpdeskUpdate:
+        overall_started = perf_counter()
+        logger.info(
+            "freshdesk_recent_orders.workflow_started ticket_id=%s dry_run=%s max_records=%s has_phone=%s has_email=%s has_order_number=%s",
+            request.ticket_id,
+            dry_run,
+            max_records,
+            bool(request.customer_phone),
+            bool(request.customer_email),
+            bool(request.order_number),
+        )
+
+        enrichment_started = perf_counter()
         result = self.run_freshdesk_recent_orders(
             request,
             dry_run=dry_run,
             max_records=max_records,
             filter_mode=filter_mode,
         )
+        enrichment_duration_ms = round((perf_counter() - enrichment_started) * 1000, 2)
+        logger.info(
+            "freshdesk_recent_orders.oms_enrichment_done ticket_id=%s duration_ms=%s match_status=%s matched_order_count=%s matched_by=%s",
+            request.ticket_id,
+            enrichment_duration_ms,
+            result.match_status,
+            result.matched_order_count,
+            result.metadata.get("matched_by"),
+        )
+
         update = self._build_helpdesk_update(
             ticket_id=request.ticket_id,
             result=result,
         )
+        update = self._add_timing_metadata(
+            update,
+            {
+                "oms_enrichment_ms": enrichment_duration_ms,
+                "freshdesk_write_ms": None,
+                "total_ms": round((perf_counter() - overall_started) * 1000, 2),
+            },
+        )
         if dry_run or self.helpdesk_adapter is None:
+            logger.info(
+                "freshdesk_recent_orders.workflow_finished ticket_id=%s duration_ms=%s dry_run=%s write_back=%s",
+                request.ticket_id,
+                update.metadata["timings"]["total_ms"],
+                dry_run,
+                False,
+            )
             return update
-        return self.helpdesk_adapter.apply_update(update)
+
+        write_started = perf_counter()
+        logger.info(
+            "freshdesk_recent_orders.freshdesk_write_started ticket_id=%s",
+            request.ticket_id,
+        )
+        updated = self.helpdesk_adapter.apply_update(update)
+        write_duration_ms = round((perf_counter() - write_started) * 1000, 2)
+        updated = self._add_timing_metadata(
+            updated,
+            {
+                "oms_enrichment_ms": enrichment_duration_ms,
+                "freshdesk_write_ms": write_duration_ms,
+                "total_ms": round((perf_counter() - overall_started) * 1000, 2),
+            },
+        )
+        logger.info(
+            "freshdesk_recent_orders.workflow_finished ticket_id=%s duration_ms=%s dry_run=%s write_back=%s note_id=%s",
+            request.ticket_id,
+            updated.metadata["timings"]["total_ms"],
+            dry_run,
+            True,
+            (updated.metadata.get("freshdesk") or {}).get("note_id"),
+        )
+        return updated
 
     def run_enrichment_request(
         self,
@@ -526,6 +590,15 @@ class EnrichTicketWithOrdersWorkflow:
             tags=["oms-enriched"] if result.matched_order_count else ["oms-no-match"],
             metadata=result.metadata,
         )
+
+    @staticmethod
+    def _add_timing_metadata(
+        update: HelpdeskUpdate,
+        timings: dict[str, float | None],
+    ) -> HelpdeskUpdate:
+        metadata = dict(update.metadata)
+        metadata["timings"] = timings
+        return update.model_copy(update={"metadata": metadata})
 
     @staticmethod
     def _to_helpdesk_summary_request(request: EnrichmentRequest) -> HelpdeskRequest:
