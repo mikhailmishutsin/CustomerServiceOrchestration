@@ -87,7 +87,7 @@ Current deployment:
 - Log enough to debug integrations, but never log secrets or full customer PII unnecessarily.
 
 ## Definition of done for future feature threads
-- Read this file plus `docs/project-context.md`, `docs/current-scope.md`, `docs/api-contracts.md`, `docs/workflows.md`, `docs/security.md`, and `docs/decisions.md`.
+- Read this file plus `docs/project-context.md`, `docs/current-scope.md`, `docs/api-contracts.md`, `docs/workflows.md`, `docs/security.md`, `docs/decisions.md`, and `docs/backlog.md`.
 - Preserve the existing Freshdesk/OMS flow unless the user explicitly changes it.
 - Add focused tests for every workflow or adapter change.
 - Keep new integrations behind adapters/clients.

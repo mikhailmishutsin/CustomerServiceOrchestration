@@ -99,3 +99,13 @@ Read cs-orchestration-context/AGENTS.md and docs/*.md first.
 Then implement only the requested feature, preserving the existing Freshdesk/OMS deployed flow.
 Run tests before finishing and push to GitHub if Render needs to deploy the change.
 ```
+
+## Context docs
+
+- `docs/project-context.md`
+- `docs/current-scope.md`
+- `docs/api-contracts.md`
+- `docs/workflows.md`
+- `docs/security.md`
+- `docs/decisions.md`
+- `docs/backlog.md`
