@@ -1,4 +1,5 @@
 import httpx
+import pytest
 
 from cs_orchestration.config.settings import ServiceCredentials, ServiceEndpoint
 from cs_orchestration.integrations.oms.real_client import (
@@ -36,7 +37,7 @@ def test_search_orders_calls_order_business_api_with_expand_and_secret_key() -> 
 
     assert response["success"] is True
     assert captured_request is not None
-    assert captured_request.url.path.endswith("/orders_business_apis/search_orders")
+    assert captured_request.url.path.endswith("/orders_business_apis/search")
     assert captured_request.url.params["customer_phone"] == "5551234567"
     assert captured_request.url.params["customer_email"] == "customer@example.com"
     assert captured_request.url.params["expand"] == "true"
@@ -45,7 +46,7 @@ def test_search_orders_calls_order_business_api_with_expand_and_secret_key() -> 
     assert captured_request.headers["Authorization"].startswith("Basic ")
     assert "filter_mode" not in captured_request.url.params
     assert client.last_request_debug is not None
-    assert client.last_request_debug["operation"] == "search_orders"
+    assert client.last_request_debug["operation"] == "search"
     assert client.last_request_debug["query"]["secret_key"] == "[redacted]"
     assert "svc-secret-key" not in client.last_request_debug["url"]
     assert "svc-password" not in client.last_request_debug["url"]
@@ -145,3 +146,37 @@ def test_http_status_error_does_not_expose_secret_in_message() -> None:
     assert "302" in message
     assert "https://www.example.test/" in message
     assert "very-secret-value" not in message
+
+
+def test_non_json_response_surfaces_response_details() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html; charset=utf-8"},
+            text="<html><body>Unexpected HTML response</body></html>",
+            request=request,
+        )
+
+    client = OrderBusinessApiClient(
+        ServiceEndpoint(
+            base_url="https://orders.example.test",
+            credentials=ServiceCredentials(
+                username="svc-user",
+                password="svc-password",
+                secret_key="very-secret-value",
+            ),
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(OrderBusinessApiError) as exc:
+        client.search_orders(customer_phone="5551234567", limit=3)
+
+    assert (
+        str(exc.value)
+        == "Order Business API returned a non-JSON response. HTTP 200, Content-Type: text/html; charset=utf-8."
+    )
+    assert client.last_request_debug is not None
+    assert client.last_request_debug["response"]["status_code"] == 200
+    assert client.last_request_debug["response"]["content_type"] == "text/html; charset=utf-8"
+    assert "Unexpected HTML response" in client.last_request_debug["response"]["body_preview"]

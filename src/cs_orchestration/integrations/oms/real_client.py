@@ -54,7 +54,7 @@ class OrderBusinessApiClient:
                 "max_records": limit,
             }
         )
-        return self._get("search_orders", params)
+        return self._get("search", params)
 
     def get_order_details(
         self,
@@ -89,8 +89,14 @@ class OrderBusinessApiClient:
                     headers=headers,
                     auth=auth,
                 )
+                self._attach_response_debug(response)
                 response.raise_for_status()
-                return response.json()
+                try:
+                    return response.json()
+                except ValueError as exc:
+                    raise OrderBusinessApiError(
+                        _invalid_json_message(response)
+                    ) from exc
             except httpx.HTTPStatusError as exc:
                 raise OrderBusinessApiError(_status_error_message(exc.response)) from None
             except httpx.HTTPError as exc:
@@ -154,6 +160,15 @@ class OrderBusinessApiClient:
             "auth_mode": self.endpoint.auth_mode,
         }
 
+    def _attach_response_debug(self, response: httpx.Response) -> None:
+        if self.last_request_debug is None:
+            return
+        self.last_request_debug["response"] = {
+            "status_code": response.status_code,
+            "content_type": response.headers.get("content-type"),
+            "body_preview": _body_preview(response.text),
+        }
+
 
 def _bool_param(value: bool) -> str:
     return "true" if value else "false"
@@ -165,6 +180,21 @@ def _status_error_message(response: httpx.Response) -> str:
     if location:
         message = f"{message} Redirect location: {location}"
     return message
+
+
+def _invalid_json_message(response: httpx.Response) -> str:
+    content_type = response.headers.get("content-type") or "unknown"
+    return (
+        "Order Business API returned a non-JSON response. "
+        f"HTTP {response.status_code}, Content-Type: {content_type}."
+    )
+
+
+def _body_preview(text: str, limit: int = 240) -> str:
+    compact = " ".join(text.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[:limit] + "..."
 
 
 def _redact_params(params: dict[str, Any], endpoint: ServiceEndpoint) -> dict[str, Any]:

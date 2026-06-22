@@ -44,7 +44,7 @@ class MockOmsClient:
         self.request_history.append(self.last_request.copy())
         self.last_request_debug = {
             "service": "mock_order_business_api",
-            "operation": "search_orders",
+            "operation": "search",
             "method": "MOCK",
             "fixture_path": str(self.fixture_path),
             "query": self.last_request,

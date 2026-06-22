@@ -59,7 +59,7 @@ def test_workflow_returns_dry_run_helpdesk_update() -> None:
     assert "Carrier: FedEx" in update.private_note
     assert "First FedEx scan: May 15, 2026, 1:34 PM ET" in update.private_note
     assert oms_client.last_request["expand"] is True
-    assert update.metadata["debug"]["order_business_request"]["operation"] == "search_orders"
+    assert update.metadata["debug"]["order_business_request"]["operation"] == "search"
     assert update.metadata["normalized_case_type"] == "wismo"
     assert update.metadata["search_window_days"] == 30
     assert update.metadata["search_window_note"] == "WISMO checks orders placed within the last 30 days."
