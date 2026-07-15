@@ -6,7 +6,10 @@ The orchestration layer should sit between Customer Service tools and internal s
 It should not be tightly coupled to Freshdesk.
 Freshdesk is only the first Helpdesk implementation.
 
-## High-level flow
+## Target architecture
+
+This diagram includes integrations planned for later stages. Only the current
+Freshdesk flow below is deployed today.
 
 ```text
 Freshdesk / Support Channel
@@ -15,7 +18,7 @@ Freshdesk / Support Channel
 Render-hosted Orchestration API
         |
         +--> Order Business API
-        |       +--> search_orders
+        |       +--> order search (`GET /search`)
         |       +--> get_order_details
         +--> FedEx API fallback
         +--> Product/SKU API
@@ -37,7 +40,7 @@ POST /freshdesk/recent-orders
 Exact/partial contact lookup workflow
         |
         v
-Order Business API search_orders(expand=true, max_records=3)
+Order Business API order search (`GET /search`, `expand=true`, `max_records=3`)
         |
         v
 Normalized orders + support summary
@@ -81,10 +84,12 @@ Should expose methods like:
 - create replacement order
 
 Order search and order details use the same Order Business API base URL and service user.
-The client should still expose separate methods because `search_orders` and `get_order_details` are different operations.
+The client should still expose separate methods because order search and `get_order_details` are different operations. The current order-search method calls OMS `GET /search`.
 
 ### FedEx tracking client
 Responsible only for fallback FedEx shipment tracking calls.
+
+Status: planned. A separate FedEx client and fallback call are not implemented yet.
 
 Important rule:
 - If Order Business API `expand=true` already returns embedded `tracking_status`, do not call the FedEx API.

@@ -85,11 +85,11 @@ The response is a common `HelpdeskUpdate`.
   "private_note": "Found 1 order(s) in the last 30 days...",
   "public_reply": null,
   "custom_fields": {
-    "order_summary": "Latest order WLM-123 placed Jun 01, 2026, 10:15 AM ET | Delivery status: Delivered.",
+    "order_summary": "Latest order WLM-123 placed Jun 01, 2026, 10:15 AM CDT | Delivery status: Delivered.",
     "order_link": "https://ds.utires.com/order_management/#order=WLM-123",
     "delivery_status": "Delivered",
-    "delivery_eta": "Jun 03, 2026, 9:00 AM - 5:00 PM ET",
-    "order_date": "Jun 01, 2026, 10:15 AM ET"
+    "delivery_eta": "Jun 03, 2026, 9:00 AM - 5:00 PM CDT",
+    "order_date": "Jun 01, 2026, 10:15 AM CDT"
   },
   "tags": ["oms-enriched"],
   "metadata": {
@@ -153,13 +153,21 @@ When structured matched order snapshots exist, the Freshdesk note uses a richer 
 - clickable FedEx tracking links when `tracking_url` exists
 - other recent orders table that excludes the latest order
 
-## OMS `search_orders`
+## OMS order search
 
 ### Purpose
 Find recent orders by customer/order identifiers. This endpoint can now also return expanded order details and tracking status.
 
 ### Endpoint and credentials
-`search_orders` is an operation on the Order Business API.
+In the application code, this operation is called `search_orders`. The current
+OMS HTTP endpoint is:
+
+```text
+GET {ORDER_BUSINESS_API_BASE_URL}/search
+```
+
+`search_orders` and `get_order_details` are logical operation names; they are
+not both HTTP path names.
 
 Expected configuration shape:
 
@@ -170,7 +178,7 @@ ORDER_BUSINESS_API_PASSWORD
 ORDER_BUSINESS_API_SECRET_KEY
 ```
 
-`search_orders` and `get_order_details` use the same Order Business API base URL and service user.
+Order search and `get_order_details` use the same Order Business API base URL and service user.
 The login/password authorize access to the system; `secret_key` is still appended to the request URL.
 
 ### Supported search criteria
@@ -209,7 +217,7 @@ Known filter fields:
 Example with `any`:
 
 ```text
-/search_orders?customer_phone=5551234567&filter_mode=any&expand=true&secret_key=***
+/search?customer_phone=5551234567&filter_mode=any&expand=true&secret_key=***
 ```
 
 Implementation note:
@@ -225,7 +233,7 @@ Instead it uses simple fallback searches:
 Example with filters:
 
 ```text
-/search_orders?customer_email=customer@example.com&customer_full_name=John%20Customer&customer_phone=5551234567&order_status=Processing&order_status_fulfillment=Delivered&marketplace=utires.com&expand=true&secret_key=***
+/search?customer_email=customer@example.com&customer_full_name=John%20Customer&customer_phone=5551234567&order_status=Processing&order_status_fulfillment=Delivered&marketplace=utires.com&expand=true&secret_key=***
 ```
 
 ### Expand mode
@@ -244,7 +252,7 @@ If `expand` is not enabled, search results may contain only high-level order fie
 - `orders[]` is the top-level result list.
 - `orders[].details` may exist only when `expand=true`.
 - If `orders[].details` exists, prefer it for line-level and shipment data.
-- If `orders[].details` does not exist, call `details_url` or `get_order_details` to fetch line/tracking data.
+- The current deployed workflow does not yet call `details_url` or `get_order_details` automatically when details are missing; that fallback is the next integration stage.
 - Sort orders by `order_date` descending before selecting latest order unless the client explicitly guarantees sort order.
 - Never expose `secret_key` from URLs in customer-facing text, logs, notes, or custom fields.
 - Store raw URLs only in redacted/debug-safe form.
@@ -272,7 +280,7 @@ ORDER_BUSINESS_API_PASSWORD
 ORDER_BUSINESS_API_SECRET_KEY
 ```
 
-`search_orders` and `get_order_details` use the same Order Business API base URL and service user.
+Order search and `get_order_details` use the same Order Business API base URL and service user.
 The login/password authorize access to the system; `secret_key` is still appended to the request URL.
 
 ### Expand mode
@@ -320,9 +328,9 @@ examples/oms-get-order-details-response-expanded-sanitized.json
 Tracking status can come from two places:
 
 1. Already embedded in OMS response when `expand=true`.
-2. Fetched separately from `tracking_status_urls` when expand is false or embedded status is missing.
+2. Fetched separately from `tracking_status_urls` when expand is false or embedded status is missing (planned fallback).
 
-Parser should support both.
+The current deployed flow uses embedded OMS status only. The separate tracking fallback will be added with the FedEx client.
 
 ### Endpoint and credentials
 Fallback tracking should be configured as the FedEx API integration.

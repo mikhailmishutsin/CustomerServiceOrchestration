@@ -1,15 +1,22 @@
+from copy import deepcopy
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 import cs_orchestration.api.routes.enrichment as enrichment_routes
 from cs_orchestration.config.settings import settings
-from cs_orchestration.integrations.helpdesk.freshdesk_adapter import FreshdeskAdapter
+from cs_orchestration.integrations.helpdesk.mock_adapter import MockHelpdeskAdapter
 from cs_orchestration.integrations.oms.factory import build_order_business_client
+from cs_orchestration.integrations.oms.mock_client import MockOmsClient
+from cs_orchestration.integrations.oms.real_client import OrderBusinessApiError
 from cs_orchestration.main import app, create_app
 from cs_orchestration.ui import render_agent_preview
 from cs_orchestration.workflows.enrich_ticket import EnrichTicketWithOrdersWorkflow
+
+
+FIXTURE = Path("cs-orchestration-context/examples/oms-search-orders-response.json")
 
 
 @pytest.fixture(autouse=True)
@@ -41,15 +48,8 @@ def force_mock_mode_for_api_tests(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _fixed_clock_workflow() -> EnrichTicketWithOrdersWorkflow:
-    helpdesk_adapter = None
-    if settings.freshdesk.base_url and settings.freshdesk.api_key:
-        helpdesk_adapter = FreshdeskAdapter(
-            base_url=settings.freshdesk.base_url,
-            api_key=settings.freshdesk.api_key,
-        )
     return EnrichTicketWithOrdersWorkflow(
         oms_client=build_order_business_client(settings),
-        helpdesk_adapter=helpdesk_adapter,
         order_management_base_url=settings.order_management_base_url,
         now_provider=lambda: datetime(2026, 6, 4, tzinfo=UTC),
     )
@@ -107,8 +107,8 @@ def test_enrich_ticket_endpoint_returns_dry_run_update() -> None:
     assert body["metadata"]["order_count"] == 1
     assert "Delivered" in body["private_note"]
     assert body["custom_fields"]["delivery_status"] == "Delivered"
-    assert body["custom_fields"]["delivery_eta"] == "May 14, 2026, 8:00 PM ET"
-    assert body["custom_fields"]["order_date"] == "May 12, 2026, 5:20 PM ET"
+    assert body["custom_fields"]["delivery_eta"] == "May 14, 2026, 7:00 PM CDT"
+    assert body["custom_fields"]["order_date"] == "May 12, 2026, 4:20 PM CDT"
     assert (
         body["custom_fields"]["order_link"]
         == "https://ds.utires.com/order_management/#order=wlm-000000000000000"
@@ -143,8 +143,8 @@ def test_generic_enrichment_endpoint_returns_structured_response() -> None:
     assert body["match_status"] == "single_match"
     assert body["matched_order_count"] == 1
     assert body["result"]["delivery_status"] == "Delivered"
-    assert body["result"]["delivery_eta"] == "May 14, 2026, 8:00 PM ET"
-    assert body["result"]["order_date"] == "May 12, 2026, 5:20 PM ET"
+    assert body["result"]["delivery_eta"] == "May 14, 2026, 7:00 PM CDT"
+    assert body["result"]["order_date"] == "May 12, 2026, 4:20 PM CDT"
     assert body["result"]["order_link"] == (
         "https://ds.utires.com/order_management/#order=wlm-000000000000000"
     )
@@ -154,7 +154,7 @@ def test_generic_enrichment_endpoint_returns_structured_response() -> None:
     assert body["matched_orders"][0]["marketplace"] == "walmart_main"
     assert body["matched_orders"][0]["customer"]["email"] == "customer@example.com"
     assert body["matched_orders"][0]["shipments"][0]["tracking_status"] == "Delivered"
-    assert body["matched_orders"][0]["shipments"][0]["eta"] == "May 14, 2026, 8:00 PM ET"
+    assert body["matched_orders"][0]["shipments"][0]["eta"] == "May 14, 2026, 7:00 PM CDT"
 
 
 def test_latest_order_by_contact_endpoint_returns_single_order() -> None:
@@ -202,6 +202,31 @@ def test_recent_orders_by_contact_endpoint_returns_recent_orders_payload() -> No
     assert len(body["matched_orders"]) == 1
 
 
+def test_recent_orders_by_contact_returns_standard_oms_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingOmsClient:
+        last_request_debug = {"service": "order_business_api"}
+
+        def search_orders(self, **_: object) -> dict[str, object]:
+            raise OrderBusinessApiError("OMS is temporarily unavailable.")
+
+    workflow = EnrichTicketWithOrdersWorkflow(oms_client=FailingOmsClient())  # type: ignore[arg-type]
+    monkeypatch.setattr(enrichment_routes, "_workflow", lambda: workflow)
+    client = TestClient(app)
+
+    response = client.post(
+        "/orders/recent-by-contact",
+        json={
+            "source_system": "twilio",
+            "lookup": {"customer_phone": "5551234567"},
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["message"] == "OMS is temporarily unavailable."
+
+
 def test_freshdesk_recent_orders_endpoint_returns_helpdesk_update_shape() -> None:
     client = TestClient(app)
 
@@ -223,6 +248,105 @@ def test_freshdesk_recent_orders_endpoint_returns_helpdesk_update_shape() -> Non
     assert body["metadata"]["oms_max_records"] == 3
     assert body["metadata"]["dry_run"] is True
     assert body["custom_fields"]["delivery_status"] == "Delivered"
+
+
+def test_freshdesk_recent_orders_passes_its_limit_to_oms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    oms_client = MockOmsClient(FIXTURE)
+    workflow = EnrichTicketWithOrdersWorkflow(
+        oms_client=oms_client,
+        now_provider=lambda: datetime(2026, 6, 4, tzinfo=UTC),
+    )
+    monkeypatch.setattr(enrichment_routes, "_workflow", lambda: workflow)
+    client = TestClient(app)
+
+    response = client.post(
+        "/freshdesk/recent-orders",
+        json={"ticket_id": "fd-123", "customer_phone": "5551234567"},
+    )
+
+    assert response.status_code == 200
+    assert oms_client.last_request is not None
+    assert oms_client.last_request["limit"] == 3
+
+
+def test_freshdesk_recent_orders_returns_no_match_for_orders_outside_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = EnrichTicketWithOrdersWorkflow(
+        oms_client=MockOmsClient(FIXTURE),
+        now_provider=lambda: datetime(2026, 7, 30, tzinfo=UTC),
+    )
+    monkeypatch.setattr(enrichment_routes, "_workflow", lambda: workflow)
+    client = TestClient(app)
+
+    response = client.post(
+        "/freshdesk/recent-orders",
+        json={"ticket_id": "fd-123", "customer_phone": "5551234567"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata"]["order_count"] == 0
+    assert body["tags"] == ["oms-no-match"]
+    assert "No orders were found in the last 30 days" in body["private_note"]
+
+
+def test_freshdesk_recent_orders_marks_multiple_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class MultipleOrdersOmsClient(MockOmsClient):
+        def search_orders(self, **kwargs):  # type: ignore[override]
+            response = super().search_orders(**kwargs)
+            duplicate = deepcopy(response["orders"][0])
+            duplicate["order_number"] = "wlm-second-order"
+            duplicate["details"]["order_number"] = "wlm-second-order"
+            response["orders"].append(duplicate)
+            response["order_count"] = len(response["orders"])
+            return response
+
+    workflow = EnrichTicketWithOrdersWorkflow(
+        oms_client=MultipleOrdersOmsClient(FIXTURE),
+        now_provider=lambda: datetime(2026, 6, 4, tzinfo=UTC),
+    )
+    monkeypatch.setattr(enrichment_routes, "_workflow", lambda: workflow)
+    client = TestClient(app)
+
+    response = client.post(
+        "/freshdesk/recent-orders",
+        json={"ticket_id": "fd-123", "customer_phone": "5551234567"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata"]["order_count"] == 2
+    assert "Found 2 order(s)" in body["private_note"]
+    assert any("last 4 digits" in warning for warning in body["metadata"]["warnings"])
+
+
+def test_freshdesk_endpoint_writes_common_update_through_freshdesk_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = MockHelpdeskAdapter()
+    monkeypatch.setattr(enrichment_routes, "_freshdesk_adapter", lambda: adapter)
+    settings.dry_run = False
+    client = TestClient(app)
+
+    response = client.post(
+        "/freshdesk/recent-orders",
+        json={
+            "ticket_id": "fd-123",
+            "customer_phone": "+1 (555) 123-4567",
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(adapter.applied_updates) == 1
+    assert adapter.applied_updates[0].ticket_id == "fd-123"
+    assert response.json()["metadata"]["operation"] == (
+        "recent_orders_by_contact_or_reference"
+    )
 
 
 def test_generic_enrichment_endpoint_requires_lookup_input() -> None:

@@ -1,9 +1,9 @@
 {
-  "description": "search_orders matched 1 order(s) across 1 line(s) for business object 'orders'. Call each order's details_url (get_order_details) for line + tracking detail.",
+  "description": "Order search (GET /search) matched 1 order(s) across 1 line(s) for business object 'orders'. Details fallback is documented for a future workflow stage.",
   "operation": {
     "business_object": "orders",
     "environment": "prod",
-    "name": "search_orders",
+    "name": "search",
     "search": {
       "available_filters": {
         "marketplace": [

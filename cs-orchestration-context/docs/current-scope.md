@@ -5,6 +5,30 @@
 ### Main deployed flow
 Find recent orders by Freshdesk ticket/customer data and create a Freshdesk private note.
 
+### Core API and channel adapters
+The core API remains independent from Freshdesk. It provides common order lookup
+operations and a common structured response for any channel:
+
+- `POST /enrichment/resolve` for a universal lookup request;
+- `POST /orders/latest-by-contact` for one latest order by phone or email;
+- `POST /orders/recent-by-contact` for multiple recent orders by phone or email.
+
+`POST /freshdesk/recent-orders` is a Freshdesk adapter. It converts the
+Freshdesk payload into the common recent-orders request, then renders and writes
+the common result as a Freshdesk private note when `DRY_RUN=false`.
+
+### Available now
+- OMS order search through `GET /search` with `expand=true`;
+- embedded OMS tracking status, ETA, and first-scan information when supplied;
+- Freshdesk private-note write-back;
+- exact contact match followed by phone-only and email-only fallback;
+- common JSON responses for future channels.
+
+### Next integration stages
+- automatic `get_order_details` call when OMS search does not include details;
+- FedEx/tracking API fallback when expanded OMS data has no embedded tracking status;
+- Twilio, product/SKU, and other channel adapters.
+
 ### Input
 A request from Freshdesk containing ticket and customer context.
 
@@ -22,8 +46,9 @@ The orchestration layer should:
 4. Normalize US phone numbers for OMS lookup by removing punctuation and leading `1`.
 5. When both phone and email exist, call OMS first with exact contact match semantics.
 6. If exact match finds nothing, fallback to phone-only then email-only partial matching.
-7. Call Order Business API `search_orders` with `expand=true`.
-8. Ask OMS for 3 records by default for the Freshdesk recent-orders endpoint.
+7. Call the Order Business API order-search operation (`GET /search`) with `expand=true`.
+8. Apply Freshdesk's internal recent-orders return limit (3 by default) as OMS
+   `max_records`, so OMS returns only the orders Freshdesk will show.
 9. Normalize raw OMS response.
 10. Format human-friendly order dates, ETA windows, and first scan dates.
 11. Build Helpdesk update payload.

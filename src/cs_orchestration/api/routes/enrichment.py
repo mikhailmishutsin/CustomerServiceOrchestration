@@ -1,6 +1,8 @@
 import logging
+from collections.abc import Callable
 from secrets import compare_digest
 from time import perf_counter
+from typing import TypeVar
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
@@ -16,12 +18,16 @@ from cs_orchestration.integrations.helpdesk.freshdesk_adapter import (
     FreshdeskAdapter,
     FreshdeskApiError,
 )
+from cs_orchestration.integrations.helpdesk.freshdesk_mapper import (
+    to_recent_orders_enrichment_request,
+)
 from cs_orchestration.integrations.oms.factory import build_order_business_client
 from cs_orchestration.integrations.oms.real_client import OrderBusinessApiError
 from cs_orchestration.workflows.enrich_ticket import EnrichTicketWithOrdersWorkflow
 
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 def _require_inbound_api_key(
@@ -48,12 +54,14 @@ def _error_detail(message: str, debug: dict | None = None) -> str | dict:
     }
 
 
-@router.post("/enrich-ticket", response_model=HelpdeskUpdate)
-def enrich_ticket(request: HelpdeskRequest) -> HelpdeskUpdate:
+def _run_core_operation(
+    operation: Callable[[EnrichTicketWithOrdersWorkflow], T],
+) -> T:
+    """Run a channel-neutral operation with the standard OMS error response."""
     workflow = _workflow()
     oms_client = workflow.oms_client
     try:
-        return workflow.run(request, dry_run=settings.dry_run)
+        return operation(workflow)
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
@@ -78,90 +86,43 @@ def enrich_ticket(request: HelpdeskRequest) -> HelpdeskUpdate:
                 },
             ),
         ) from None
+
+
+@router.post("/enrich-ticket", response_model=HelpdeskUpdate)
+def enrich_ticket(request: HelpdeskRequest) -> HelpdeskUpdate:
+    return _run_core_operation(
+        lambda workflow: workflow.run(request, dry_run=settings.dry_run)
+    )
 
 
 @router.post("/enrichment/resolve", response_model=EnrichmentResponse)
 def resolve_enrichment(request: EnrichmentRequest) -> EnrichmentResponse:
-    workflow = _workflow()
-    oms_client = workflow.oms_client
-    try:
-        return workflow.run_enrichment_request(request, dry_run=settings.dry_run)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=_error_detail(
-                str(exc),
-                {
-                    "order_business_request": getattr(
-                        oms_client, "last_request_debug", None
-                    )
-                },
-            ),
-        ) from None
-    except OrderBusinessApiError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=_error_detail(
-                str(exc),
-                {
-                    "order_business_request": getattr(
-                        oms_client, "last_request_debug", None
-                    )
-                },
-            ),
-        ) from None
+    return _run_core_operation(
+        lambda workflow: workflow.run_enrichment_request(
+            request,
+            dry_run=settings.dry_run,
+        )
+    )
 
 
 @router.post("/orders/latest-by-contact", response_model=EnrichmentResponse)
 def latest_order_by_contact(request: EnrichmentRequest) -> EnrichmentResponse:
-    workflow = _workflow()
-    oms_client = workflow.oms_client
-    try:
-        return workflow.run_latest_order_by_contact(request, dry_run=settings.dry_run)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=_error_detail(
-                str(exc),
-                {
-                    "order_business_request": getattr(
-                        oms_client, "last_request_debug", None
-                    )
-                },
-            ),
-        ) from None
-    except OrderBusinessApiError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=_error_detail(
-                str(exc),
-                {
-                    "order_business_request": getattr(
-                        oms_client, "last_request_debug", None
-                    )
-                },
-            ),
-        ) from None
+    return _run_core_operation(
+        lambda workflow: workflow.run_latest_order_by_contact(
+            request,
+            dry_run=settings.dry_run,
+        )
+    )
 
 
 @router.post("/orders/recent-by-contact", response_model=EnrichmentResponse)
 def recent_orders_by_contact(request: EnrichmentRequest) -> EnrichmentResponse:
-    workflow = _workflow()
-    oms_client = workflow.oms_client
-    try:
-        return workflow.run_recent_orders_by_contact(request, dry_run=settings.dry_run)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=_error_detail(
-                str(exc),
-                {
-                    "order_business_request": getattr(
-                        oms_client, "last_request_debug", None
-                    )
-                },
-            ),
-        ) from None
+    return _run_core_operation(
+        lambda workflow: workflow.run_recent_orders_by_contact(
+            request,
+            dry_run=settings.dry_run,
+        )
+    )
 
 
 @router.post("/freshdesk/recent-orders", response_model=HelpdeskUpdate)
@@ -177,11 +138,35 @@ def freshdesk_recent_orders(request: FreshdeskRecentOrdersRequest) -> HelpdeskUp
     )
     workflow = _workflow()
     oms_client = workflow.oms_client
+    freshdesk_adapter: FreshdeskAdapter | None = None
     try:
-        update = workflow.run_freshdesk_recent_orders_update(
-            request,
+        enrichment_started = perf_counter()
+        result = workflow.run_recent_orders_by_contact_or_reference(
+            to_recent_orders_enrichment_request(request),
             dry_run=settings.dry_run,
         )
+        enrichment_duration_ms = round((perf_counter() - enrichment_started) * 1000, 2)
+        update = workflow.build_helpdesk_update(ticket_id=request.ticket_id, result=result)
+        update = workflow.add_timing_metadata(
+            update,
+            {
+                "oms_enrichment_ms": enrichment_duration_ms,
+                "freshdesk_write_ms": None,
+                "total_ms": round((perf_counter() - started) * 1000, 2),
+            },
+        )
+        freshdesk_adapter = _freshdesk_adapter()
+        if not settings.dry_run and freshdesk_adapter is not None:
+            write_started = perf_counter()
+            update = freshdesk_adapter.apply_update(update)
+            update = workflow.add_timing_metadata(
+                update,
+                {
+                    "oms_enrichment_ms": enrichment_duration_ms,
+                    "freshdesk_write_ms": round((perf_counter() - write_started) * 1000, 2),
+                    "total_ms": round((perf_counter() - started) * 1000, 2),
+                },
+            )
         logger.info(
             "freshdesk_recent_orders.request_finished ticket_id=%s status=success duration_ms=%s matched_order_count=%s",
             request.ticket_id,
@@ -235,7 +220,7 @@ def freshdesk_recent_orders(request: FreshdeskRecentOrdersRequest) -> HelpdeskUp
                 {
                     "order_business_request": getattr(oms_client, "last_request_debug", None),
                     "freshdesk_request": getattr(
-                        workflow.helpdesk_adapter,
+                        freshdesk_adapter,
                         "last_request_debug",
                         None,
                     ),
@@ -246,14 +231,16 @@ def freshdesk_recent_orders(request: FreshdeskRecentOrdersRequest) -> HelpdeskUp
 
 def _workflow() -> EnrichTicketWithOrdersWorkflow:
     oms_client = build_order_business_client(settings)
-    helpdesk_adapter = None
+    return EnrichTicketWithOrdersWorkflow(
+        oms_client=oms_client,
+        order_management_base_url=settings.order_management_base_url,
+    )
+
+
+def _freshdesk_adapter() -> FreshdeskAdapter | None:
     if settings.freshdesk.base_url and settings.freshdesk.api_key:
-        helpdesk_adapter = FreshdeskAdapter(
+        return FreshdeskAdapter(
             base_url=settings.freshdesk.base_url,
             api_key=settings.freshdesk.api_key,
         )
-    return EnrichTicketWithOrdersWorkflow(
-        oms_client=oms_client,
-        helpdesk_adapter=helpdesk_adapter,
-        order_management_base_url=settings.order_management_base_url,
-    )
+    return None

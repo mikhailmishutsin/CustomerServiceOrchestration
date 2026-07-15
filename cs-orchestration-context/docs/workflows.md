@@ -21,12 +21,10 @@ POST /freshdesk/recent-orders
    phone-only search, then email-only search.
 6. If order number exists and contact lookup does not find orders, search by order reference.
 7. Prefer `expand=true` for order-status enrichment because it can return order details and tracking status in one response.
-8. Call OMS `search_orders` with `max_records=3` for the Freshdesk recent-orders endpoint.
+8. Call OMS order search at `GET /search` with `max_records=3` for the Freshdesk recent-orders endpoint.
 9. Sort orders from newest to oldest by `order_date` if needed.
-10. For each selected order:
-   - if `orders[].details` exists, use it for line and shipment data;
-   - if `orders[].details` is missing, call `get_order_details` with `expand=true` when shipment data is required.
-11. If expanded details still do not include `tracking_status`, use `tracking_status_urls` as fallback.
+10. For each selected order, use `orders[].details` when present for line and shipment data.
+11. Automatic `get_order_details` and `tracking_status_urls` fallbacks are planned; they are not part of the current deployed flow.
 12. Normalize orders and shipments.
 13. Format order dates, ETA windows, first scan dates, and delivery dates in agent-friendly form.
 14. Build short support summary.

@@ -1,9 +1,8 @@
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
-
-FilterMode = Literal["all", "any"]
+from cs_orchestration.integrations.oms.base import FilterMode
 
 
 class MockOmsClient:

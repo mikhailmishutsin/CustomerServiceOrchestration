@@ -87,7 +87,7 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
                 "matched_orders": [
                     {
                         "order_reference": "wlm-latest",
-                        "order_date": "Jun 01, 2026, 10:00 AM ET",
+                        "order_date": "Jun 01, 2026, 10:00 AM CDT",
                         "marketplace": "walmart_main",
                         "customer": {
                             "name": "John Customer",
@@ -102,16 +102,16 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
                                 "tracking_url": "https://www.fedex.com/fedextrack/?trknbr=999999999999",
                                 "tracking_status": "Delivered",
                                 "tracking_details": "Delivered",
-                                "eta": "Jun 03, 2026, 9:00 AM - 5:00 PM ET",
-                                "first_scan_date": "Jun 02, 2026, 1:34 PM ET",
-                                "delivered_at": "Jun 03, 2026, 2:12 PM ET",
+                                "eta": "Jun 03, 2026, 9:00 AM - 5:00 PM CDT",
+                                "first_scan_date": "Jun 02, 2026, 1:34 PM CDT",
+                                "delivered_at": "Jun 03, 2026, 2:12 PM CDT",
                                 "child_tracking_numbers": [],
                             }
                         ],
                     },
                     {
                         "order_reference": "wlm-older",
-                        "order_date": "May 28, 2026, 2:00 PM ET",
+                        "order_date": "May 28, 2026, 2:00 PM CDT",
                         "marketplace": "ebay",
                         "customer": {},
                         "order_link": "https://ds.utires.com/order_management/#order=wlm-older",

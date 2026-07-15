@@ -9,7 +9,9 @@ from cs_orchestration.domain.models import (
     LookupCriteria,
     TicketContext,
 )
-from cs_orchestration.integrations.helpdesk.mock_adapter import MockHelpdeskAdapter
+from cs_orchestration.integrations.helpdesk.freshdesk_mapper import (
+    to_recent_orders_enrichment_request,
+)
 from cs_orchestration.integrations.oms.mock_client import MockOmsClient
 from cs_orchestration.workflows.enrich_ticket import EnrichTicketWithOrdersWorkflow
 
@@ -46,8 +48,8 @@ def test_workflow_returns_dry_run_helpdesk_update() -> None:
     assert update.metadata["order_count"] == 1
     assert "Latest order wlm-000000000000000" in update.custom_fields["order_summary"]
     assert update.custom_fields["delivery_status"] == "Delivered"
-    assert update.custom_fields["delivery_eta"] == "May 14, 2026, 8:00 PM ET"
-    assert update.custom_fields["order_date"] == "May 12, 2026, 5:20 PM ET"
+    assert update.custom_fields["delivery_eta"] == "May 14, 2026, 7:00 PM CDT"
+    assert update.custom_fields["order_date"] == "May 12, 2026, 4:20 PM CDT"
     assert (
         update.custom_fields["order_link"]
         == "https://ds.utires.com/order_management/#order=wlm-000000000000000"
@@ -57,7 +59,7 @@ def test_workflow_returns_dry_run_helpdesk_update() -> None:
     assert "Tracking 1" in update.private_note
     assert "Number: 999999999999" in update.private_note
     assert "Carrier: FedEx" in update.private_note
-    assert "First FedEx scan: May 15, 2026, 1:34 PM ET" in update.private_note
+    assert "First FedEx scan: May 15, 2026, 12:34 PM CDT" in update.private_note
     assert oms_client.last_request["expand"] is True
     assert update.metadata["debug"]["order_business_request"]["operation"] == "search"
     assert update.metadata["normalized_case_type"] == "wismo"
@@ -209,9 +211,9 @@ def test_generic_enrichment_request_can_search_by_order_reference() -> None:
     assert response.matched_orders[0].shipments[0].tracking_url == (
         "https://www.fedex.com/fedextrack/?trknbr=999999999999"
     )
-    assert response.matched_orders[0].order_date == "May 12, 2026, 5:20 PM ET"
-    assert response.matched_orders[0].shipments[0].eta == "May 14, 2026, 8:00 PM ET"
-    assert response.matched_orders[0].shipments[0].first_scan_date == "May 15, 2026, 1:34 PM ET"
+    assert response.matched_orders[0].order_date == "May 12, 2026, 4:20 PM CDT"
+    assert response.matched_orders[0].shipments[0].eta == "May 14, 2026, 7:00 PM CDT"
+    assert response.matched_orders[0].shipments[0].first_scan_date == "May 15, 2026, 12:34 PM CDT"
     assert response.metadata["matched_orders"][0]["shipments"][0]["tracking_url"] == (
         "https://www.fedex.com/fedextrack/?trknbr=999999999999"
     )
@@ -302,28 +304,32 @@ def test_wismo_returns_no_match_for_old_order() -> None:
     assert response.result.order_summary == "No matching WISMO orders found."
 
 
-def test_freshdesk_recent_orders_update_uses_helpdesk_adapter_when_not_dry_run() -> None:
-    oms_client = MockOmsClient(FIXTURE)
-    helpdesk_adapter = MockHelpdeskAdapter()
-    workflow = EnrichTicketWithOrdersWorkflow(
-        oms_client=oms_client,
-        helpdesk_adapter=helpdesk_adapter,
-        now_provider=lambda: datetime(2026, 6, 4, tzinfo=UTC),
-    )
-
-    update = workflow.run_freshdesk_recent_orders_update(
+def test_freshdesk_request_is_mapped_to_the_common_recent_orders_contract() -> None:
+    request = to_recent_orders_enrichment_request(
         FreshdeskRecentOrdersRequest(
             ticket_id="fd-123",
             customer_phone="+1 (555) 123-4567",
             customer_email="customer@example.com",
-        ),
-        dry_run=False,
+            order_number="wlm-000000000000000",
+        )
     )
 
-    assert update.ticket_id == "fd-123"
-    assert update.custom_fields["delivery_status"] == "Delivered"
-    assert len(helpdesk_adapter.applied_updates) == 1
-    assert helpdesk_adapter.applied_updates[0].ticket_id == "fd-123"
+    assert request.source_system == "freshdesk"
+    assert request.source_record_id == "fd-123"
+    assert request.case_type == "WISMO"
+    assert request.max_records == 3
+    assert request.lookup.customer_phone == "+1 (555) 123-4567"
+    assert request.lookup.customer_email == "customer@example.com"
+    assert request.lookup.order_reference == "wlm-000000000000000"
+
+
+def test_freshdesk_return_limit_becomes_the_oms_max_records_parameter() -> None:
+    request = to_recent_orders_enrichment_request(
+        FreshdeskRecentOrdersRequest(ticket_id="fd-123"),
+        return_limit=5,
+    )
+
+    assert request.max_records == 5
 
 
 class PartialMatchOmsClient(MockOmsClient):

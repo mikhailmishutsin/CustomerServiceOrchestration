@@ -1,16 +1,12 @@
-import logging
 from datetime import UTC, datetime, timedelta
-from time import perf_counter
 from typing import Callable, Literal
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
 
 from cs_orchestration.domain.models import (
     Customer,
     EnrichmentRequest,
     EnrichmentResponse,
     EnrichmentResult,
-    FreshdeskRecentOrdersRequest,
     HelpdeskRequest,
     HelpdeskUpdate,
     OrderSnapshot,
@@ -20,11 +16,15 @@ from cs_orchestration.domain.models import (
 )
 from cs_orchestration.domain.summaries import build_support_summary
 from cs_orchestration.integrations.helpdesk.base import HelpdeskAdapter
-from cs_orchestration.integrations.oms.base import OrderBusinessClient
+from cs_orchestration.integrations.oms.base import FilterMode, OrderBusinessClient
 from cs_orchestration.integrations.oms.mapper import normalize_search_orders_response
+from cs_orchestration.presentation.formatting import (
+    format_datetime,
+    format_datetime_range,
+    parse_datetime,
+)
 
 
-FilterMode = Literal["all", "any"]
 NormalizedCaseType = Literal["wismo", "unknown"]
 LookupStage = Literal[
     "contact_exact",
@@ -34,10 +34,6 @@ LookupStage = Literal[
     "order_reference",
     "customer_name",
 ]
-SUPPORT_TIME_ZONE = ZoneInfo("America/New_York")
-logger = logging.getLogger(__name__)
-
-
 class EnrichTicketWithOrdersWorkflow:
     def __init__(
         self,
@@ -69,119 +65,11 @@ class EnrichTicketWithOrdersWorkflow:
             limit=limit,
             filter_mode=filter_mode,
         )
-        update = self._build_helpdesk_update(ticket_id=request.ticket_id, result=result)
+        update = self.build_helpdesk_update(ticket_id=request.ticket_id, result=result)
 
         if dry_run or self.helpdesk_adapter is None:
             return update
         return self.helpdesk_adapter.apply_update(update)
-
-    def run_freshdesk_recent_orders(
-        self,
-        request: FreshdeskRecentOrdersRequest,
-        *,
-        dry_run: bool = True,
-        max_records: int = 3,
-        filter_mode: FilterMode | None = None,
-    ) -> EnrichmentResponse:
-        return self.run_recent_orders_by_contact_or_reference(
-            EnrichmentRequest(
-                source_system="freshdesk",
-                source_record_id=request.ticket_id,
-                case_type="WISMO",
-                max_records=max_records,
-                lookup={
-                    "customer_phone": request.customer_phone,
-                    "customer_email": request.customer_email,
-                    "order_reference": request.order_number,
-                },
-                ticket=TicketContext(channel="freshdesk", source="freshdesk"),
-            ),
-            dry_run=dry_run,
-            filter_mode=filter_mode,
-        )
-
-    def run_freshdesk_recent_orders_update(
-        self,
-        request: FreshdeskRecentOrdersRequest,
-        *,
-        dry_run: bool = True,
-        max_records: int = 3,
-        filter_mode: FilterMode | None = None,
-    ) -> HelpdeskUpdate:
-        overall_started = perf_counter()
-        logger.info(
-            "freshdesk_recent_orders.workflow_started ticket_id=%s dry_run=%s max_records=%s has_phone=%s has_email=%s has_order_number=%s",
-            request.ticket_id,
-            dry_run,
-            max_records,
-            bool(request.customer_phone),
-            bool(request.customer_email),
-            bool(request.order_number),
-        )
-
-        enrichment_started = perf_counter()
-        result = self.run_freshdesk_recent_orders(
-            request,
-            dry_run=dry_run,
-            max_records=max_records,
-            filter_mode=filter_mode,
-        )
-        enrichment_duration_ms = round((perf_counter() - enrichment_started) * 1000, 2)
-        logger.info(
-            "freshdesk_recent_orders.oms_enrichment_done ticket_id=%s duration_ms=%s match_status=%s matched_order_count=%s matched_by=%s",
-            request.ticket_id,
-            enrichment_duration_ms,
-            result.match_status,
-            result.matched_order_count,
-            result.metadata.get("matched_by"),
-        )
-
-        update = self._build_helpdesk_update(
-            ticket_id=request.ticket_id,
-            result=result,
-        )
-        update = self._add_timing_metadata(
-            update,
-            {
-                "oms_enrichment_ms": enrichment_duration_ms,
-                "freshdesk_write_ms": None,
-                "total_ms": round((perf_counter() - overall_started) * 1000, 2),
-            },
-        )
-        if dry_run or self.helpdesk_adapter is None:
-            logger.info(
-                "freshdesk_recent_orders.workflow_finished ticket_id=%s duration_ms=%s dry_run=%s write_back=%s",
-                request.ticket_id,
-                update.metadata["timings"]["total_ms"],
-                dry_run,
-                False,
-            )
-            return update
-
-        write_started = perf_counter()
-        logger.info(
-            "freshdesk_recent_orders.freshdesk_write_started ticket_id=%s",
-            request.ticket_id,
-        )
-        updated = self.helpdesk_adapter.apply_update(update)
-        write_duration_ms = round((perf_counter() - write_started) * 1000, 2)
-        updated = self._add_timing_metadata(
-            updated,
-            {
-                "oms_enrichment_ms": enrichment_duration_ms,
-                "freshdesk_write_ms": write_duration_ms,
-                "total_ms": round((perf_counter() - overall_started) * 1000, 2),
-            },
-        )
-        logger.info(
-            "freshdesk_recent_orders.workflow_finished ticket_id=%s duration_ms=%s dry_run=%s write_back=%s note_id=%s",
-            request.ticket_id,
-            updated.metadata["timings"]["total_ms"],
-            dry_run,
-            True,
-            (updated.metadata.get("freshdesk") or {}).get("note_id"),
-        )
-        return updated
 
     def run_enrichment_request(
         self,
@@ -224,7 +112,6 @@ class EnrichTicketWithOrdersWorkflow:
         *,
         dry_run: bool = True,
         search_limit: int = 10,
-        return_limit: int = 10,
         filter_mode: FilterMode | None = None,
     ) -> EnrichmentResponse:
         self._validate_contact_lookup(request)
@@ -467,7 +354,7 @@ class EnrichTicketWithOrdersWorkflow:
         cutoff = self.now_provider() - timedelta(days=30)
         filtered: list[Order] = []
         for order in orders:
-            order_dt = self._parse_datetime(order.order_date)
+            order_dt = parse_datetime(order.order_date)
             if order_dt is None:
                 continue
             if order_dt < cutoff:
@@ -486,7 +373,7 @@ class EnrichTicketWithOrdersWorkflow:
     def _build_order_snapshot(self, order: Order) -> OrderSnapshot:
         return OrderSnapshot(
             order_reference=order.order_number,
-            order_date=self._format_datetime(order.order_date),
+            order_date=format_datetime(order.order_date),
             marketplace=order.marketplace,
             customer=order.customer,
             order_link=order.details_ref.safe_agent_url if order.details_ref else None,
@@ -501,12 +388,12 @@ class EnrichTicketWithOrdersWorkflow:
                     child_tracking_numbers=shipment.child_tracking_numbers,
                     tracking_status=shipment.tracking_status,
                     tracking_details=shipment.tracking_description,
-                    eta=self._format_datetime_range(
+                    eta=format_datetime_range(
                         shipment.eta_start,
                         shipment.eta_end,
                     ),
-                    first_scan_date=self._format_datetime(shipment.first_scan_date),
-                    delivered_at=self._format_datetime(shipment.delivered_at),
+                    first_scan_date=format_datetime(shipment.first_scan_date),
+                    delivered_at=format_datetime(shipment.delivered_at),
                 )
                 for shipment in order.shipments
             ],
@@ -572,7 +459,7 @@ class EnrichTicketWithOrdersWorkflow:
         )
 
     @staticmethod
-    def _build_helpdesk_update(
+    def build_helpdesk_update(
         *,
         ticket_id: str,
         result: EnrichmentResponse,
@@ -592,7 +479,7 @@ class EnrichTicketWithOrdersWorkflow:
         )
 
     @staticmethod
-    def _add_timing_metadata(
+    def add_timing_metadata(
         update: HelpdeskUpdate,
         timings: dict[str, float | None],
     ) -> HelpdeskUpdate:
@@ -728,69 +615,6 @@ class EnrichTicketWithOrdersWorkflow:
         if len(labels) == 1:
             return labels[0]
         return " and ".join(labels)
-
-    @staticmethod
-    def _parse_datetime(value: str | None) -> datetime | None:
-        if not value:
-            return None
-        normalized = value.strip()
-        if not normalized:
-            return None
-        if normalized.endswith("Z"):
-            normalized = normalized[:-1] + "+00:00"
-        try:
-            dt = datetime.fromisoformat(normalized)
-        except ValueError:
-            return None
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=UTC)
-        return dt
-
-    def _format_datetime(self, value: str | None) -> str | None:
-        dt = self._parse_datetime(value)
-        if dt is None:
-            return None
-        dt = dt.astimezone(SUPPORT_TIME_ZONE)
-        return f"{dt.strftime('%b %d, %Y')}, {self._format_time(dt)} {self._tz_label(dt)}"
-
-    def _format_datetime_range(self, start: str | None, end: str | None) -> str | None:
-        start_dt = self._parse_datetime(start)
-        end_dt = self._parse_datetime(end)
-        if start_dt:
-            start_dt = start_dt.astimezone(SUPPORT_TIME_ZONE)
-        if end_dt:
-            end_dt = end_dt.astimezone(SUPPORT_TIME_ZONE)
-        if start_dt and end_dt:
-            if self._tz_label(start_dt) == self._tz_label(end_dt) and start_dt.date() == end_dt.date():
-                return (
-                    f"{start_dt.strftime('%b %d, %Y')}, "
-                    f"{self._format_time(start_dt)} - {self._format_time(end_dt)} {self._tz_label(end_dt)}"
-                )
-            return f"{self._format_datetime(start)} to {self._format_datetime(end)}"
-        if end_dt:
-            return self._format_datetime(end)
-        if start_dt:
-            return self._format_datetime(start)
-        return None
-
-    @staticmethod
-    def _format_time(dt: datetime) -> str:
-        hour = dt.strftime("%I").lstrip("0") or "0"
-        return f"{hour}:{dt.strftime('%M')} {dt.strftime('%p')}"
-
-    @staticmethod
-    def _tz_label(dt: datetime) -> str:
-        if dt.tzinfo == SUPPORT_TIME_ZONE:
-            return "ET"
-        offset = dt.utcoffset()
-        if offset is None:
-            return "ET"
-        total_minutes = int(offset.total_seconds() // 60)
-        sign = "+" if total_minutes >= 0 else "-"
-        absolute_minutes = abs(total_minutes)
-        hours, minutes = divmod(absolute_minutes, 60)
-        return f"UTC{sign}{hours:02d}:{minutes:02d}"
-
 
 def _normalize_order_management_base_url(base_url: str) -> str:
     normalized = (base_url or "").strip()
