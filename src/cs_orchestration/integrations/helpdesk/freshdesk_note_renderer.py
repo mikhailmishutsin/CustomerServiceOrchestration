@@ -117,8 +117,8 @@ def _tracking_section(order: dict[str, Any]) -> str:
             and shipment.get("tracking_details") != shipment.get("tracking_status")
             else None,
             f"ETA: {_safe_text(shipment.get('eta'))}" if shipment.get("eta") else None,
-            f"First scan: {_safe_text(shipment.get('first_scan_date'))}"
-            if shipment.get("first_scan_date")
+            "Actual pickup: " + _safe_text(shipment.get("actual_pickup_date"))
+            if shipment.get("actual_pickup_date")
             else None,
             f"Delivered: {_safe_text(shipment.get('delivered_at'))}"
             if shipment.get("delivered_at")

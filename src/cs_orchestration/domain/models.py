@@ -157,7 +157,7 @@ class ShipmentSnapshot(BaseModel):
     tracking_status: str | None = None
     tracking_details: str | None = None
     eta: str | None = None
-    first_scan_date: str | None = None
+    actual_pickup_date: str | None = None
     delivered_at: str | None = None
 
 

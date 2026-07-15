@@ -59,7 +59,7 @@ def test_workflow_returns_dry_run_helpdesk_update() -> None:
     assert "Tracking 1" in update.private_note
     assert "Number: 999999999999" in update.private_note
     assert "Carrier: FedEx" in update.private_note
-    assert "First FedEx scan: May 15, 2026, 12:34 PM CDT" in update.private_note
+    assert "Actual pickup: May 12, 2026, 7:00 PM CDT" in update.private_note
     assert oms_client.last_request["expand"] is True
     assert update.metadata["debug"]["order_business_request"]["operation"] == "search"
     assert update.metadata["normalized_case_type"] == "wismo"
@@ -213,7 +213,10 @@ def test_generic_enrichment_request_can_search_by_order_reference() -> None:
     )
     assert response.matched_orders[0].order_date == "May 12, 2026, 4:20 PM CDT"
     assert response.matched_orders[0].shipments[0].eta == "May 14, 2026, 7:00 PM CDT"
-    assert response.matched_orders[0].shipments[0].first_scan_date == "May 15, 2026, 12:34 PM CDT"
+    assert (
+        response.matched_orders[0].shipments[0].actual_pickup_date
+        == "May 12, 2026, 7:00 PM CDT"
+    )
     assert response.metadata["matched_orders"][0]["shipments"][0]["tracking_url"] == (
         "https://www.fedex.com/fedextrack/?trknbr=999999999999"
     )

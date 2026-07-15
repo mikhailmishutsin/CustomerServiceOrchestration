@@ -392,7 +392,7 @@ class EnrichTicketWithOrdersWorkflow:
                         shipment.eta_start,
                         shipment.eta_end,
                     ),
-                    first_scan_date=format_datetime(shipment.first_scan_date),
+                    actual_pickup_date=format_datetime(shipment.actual_pickup_date),
                     delivered_at=format_datetime(shipment.delivered_at),
                 )
                 for shipment in order.shipments

@@ -17,6 +17,7 @@ def test_normalizes_embedded_expand_tracking_status() -> None:
     assert orders[0].fulfillment_status == "Shipped"
     assert orders[0].shipments[0].carrier == "FedEx"
     assert orders[0].shipments[0].tracking_status == "Delivered"
+    assert orders[0].shipments[0].actual_pickup_date == "2026-05-13T00:00:00+00:00"
     assert orders[0].shipments[0].tracking_status_source == "embedded_expand"
 
 

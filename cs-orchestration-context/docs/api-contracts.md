@@ -415,6 +415,10 @@ Important fields:
 
 ## Helpdesk update payload
 
+For agent-facing shipment details, use `actual_pickup_date`, formatted in
+Central Time, as the "Actual pickup" value. Do not display `first_scan_date`
+in the current Freshdesk note or common response snapshots.
+
 The common orchestration output should not be Freshdesk-specific.
 
 ```json

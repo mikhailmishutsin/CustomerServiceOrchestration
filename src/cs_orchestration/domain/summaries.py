@@ -115,9 +115,9 @@ def _latest_order_tracking_lines(order: Order) -> list[str]:
         eta = display_eta(shipment)
         if eta:
             pieces.append(f"ETA: {eta}")
-        first_scan = format_datetime(getattr(shipment, "first_scan_date", None))
-        if first_scan:
-            pieces.append(f"First FedEx scan: {first_scan}")
+        actual_pickup = format_datetime(getattr(shipment, "actual_pickup_date", None))
+        if actual_pickup:
+            pieces.append(f"Actual pickup: {actual_pickup}")
         delivered_at = format_datetime(getattr(shipment, "delivered_at", None))
         if delivered_at:
             pieces.append(f"Delivered: {delivered_at}")

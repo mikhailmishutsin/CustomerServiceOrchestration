@@ -103,7 +103,7 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
                                 "tracking_status": "Delivered",
                                 "tracking_details": "Delivered",
                                 "eta": "Jun 03, 2026, 9:00 AM - 5:00 PM CDT",
-                                "first_scan_date": "Jun 02, 2026, 1:34 PM CDT",
+                                "actual_pickup_date": "Jun 02, 2026, 1:34 PM CDT",
                                 "delivered_at": "Jun 03, 2026, 2:12 PM CDT",
                                 "child_tracking_numbers": [],
                             }
@@ -131,6 +131,8 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
     assert "Latest order:" in body
     assert "OMS link:" in body
     assert "Tracking" in body
+    assert "Actual pickup: Jun 02, 2026, 1:34 PM CDT" in body
+    assert "First scan:" not in body
     assert "Other recent orders" in body
     assert ">https://ds.utires.com/order_management/#order=wlm-latest</a>" in body
     assert (
