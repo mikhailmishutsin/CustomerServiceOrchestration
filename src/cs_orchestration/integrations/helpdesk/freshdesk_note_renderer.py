@@ -16,6 +16,7 @@ def render_freshdesk_private_note(update: HelpdeskUpdate) -> str:
         '<div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">Order context</div>',
         _match_notice(update),
         _latest_order_section(latest_order),
+        _order_dates_section(latest_order),
         _tracking_section(latest_order),
     ]
     if other_orders:
@@ -61,15 +62,6 @@ def _latest_order_section(order: dict[str, Any]) -> str:
     order_link = order.get("order_link")
 
     details = [
-        f"<strong>Date:</strong> {_safe_text(order.get('order_date'))}"
-        if order.get("order_date")
-        else None,
-        f"<strong>Ship by:</strong> {_safe_text(order.get('ship_by'))}"
-        if order.get("ship_by")
-        else None,
-        f"<strong>Deliver by:</strong> {_safe_text(order.get('deliver_by'))}"
-        if order.get("deliver_by")
-        else None,
         f"<strong>Marketplace:</strong> {_safe_text(order.get('marketplace'))}"
         if order.get("marketplace")
         else None,
@@ -93,6 +85,29 @@ def _latest_order_section(order: dict[str, Any]) -> str:
     )
 
 
+def _order_dates_section(order: dict[str, Any]) -> str:
+    dates = [
+        f"<strong>Order date:</strong> {_safe_text(order.get('order_date'))}"
+        if order.get("order_date")
+        else None,
+        f"<strong>Ship by:</strong> {_safe_text(order.get('ship_by'))}"
+        if order.get("ship_by")
+        else None,
+        f"<strong>Deliver by:</strong> {_safe_text(order.get('deliver_by'))}"
+        if order.get("deliver_by")
+        else None,
+    ]
+    present_dates = [date for date in dates if date]
+    if not present_dates:
+        return ""
+    return (
+        '<div style="margin: 8px 0 10px;">'
+        '<div style="font-weight: 700; margin-bottom: 3px;">Order dates</div>'
+        f'<div>{" &nbsp; ".join(present_dates)}</div>'
+        "</div>"
+    )
+
+
 def _tracking_section(order: dict[str, Any]) -> str:
     shipments = order.get("shipments") or []
     if not shipments:
@@ -102,7 +117,7 @@ def _tracking_section(order: dict[str, Any]) -> str:
         )
 
     lines = []
-    for index, shipment in enumerate(shipments, start=1):
+    for shipment in shipments:
         tracking_number = shipment.get("tracking_number")
         tracking_url = shipment.get("tracking_url")
         if tracking_number and tracking_url:
@@ -134,10 +149,9 @@ def _tracking_section(order: dict[str, Any]) -> str:
             if shipment.get("child_tracking_numbers")
             else None,
         ]
-        label = "Tracking" if len(shipments) == 1 else f"Tracking {index}"
         lines.append(
             '<div style="margin: 3px 0;">'
-            f"<strong>{_safe_text(label)}:</strong> {tracking_value}"
+            f"<strong>{tracking_value}</strong>"
             f'<span style="margin-left: 8px;">{" &nbsp; ".join(item for item in details if item)}</span>'
             "</div>"
         )

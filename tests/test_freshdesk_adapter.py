@@ -131,10 +131,13 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
     body = str(captured["body"])
     assert "Order context" in body
     assert "Latest order:" in body
+    assert "Order dates" in body
+    assert "Order date:</strong> Jun 01, 2026, 10:00 AM CDT" in body
     assert "Ship by:</strong> Jun 02, 2026, 5:00 PM CDT" in body
     assert "Deliver by:</strong> Jun 05, 2026, 5:00 PM CDT" in body
     assert "OMS link:" in body
     assert "Tracking" in body
+    assert "Tracking 1:" not in body
     assert "Actual pickup: Jun 02, 2026, 1:34 PM CDT" in body
     assert "First scan:" not in body
     assert "Other recent orders" in body
@@ -145,7 +148,8 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
     )
     assert "https://ds.utires.com/order_management/#order=wlm-latest" in body
     assert "https://www.fedex.com/fedextrack/?trknbr=999999999999" in body
-    assert body.index("wlm-latest") < body.index("Tracking")
+    assert body.index("wlm-latest") < body.index("Order dates")
+    assert body.index("Order dates") < body.index("Tracking")
     assert body.index("Tracking") < body.index("Other recent orders")
     other_orders_html = body[body.index("Other recent orders"):]
     assert "wlm-latest" not in other_orders_html
