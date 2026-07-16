@@ -15,6 +15,8 @@ Fields:
 Fields:
 - order_number
 - order_date
+- ship_by
+- deliver_by
 - marketplace
 - order_status
 - fulfillment_status

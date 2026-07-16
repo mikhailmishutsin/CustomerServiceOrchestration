@@ -329,6 +329,11 @@ _HTML = """
           <h2>Ticket</h2>
         </div>
         <form id="ticket-form">
+          <label>
+            API key
+            <input id="api_key" type="password" autocomplete="off" spellcheck="false">
+          </label>
+
           <div class="grid-two">
             <label>
               Ticket ID
@@ -438,11 +443,16 @@ _HTML = """
           },
         };
         renderDebug(request, {});
+        const headers = { "Content-Type": "application/json" };
+        const apiKey = value("api_key");
+        if (apiKey) {
+          headers["X-API-Key"] = apiKey;
+        }
 
         try {
           const response = await fetch("/enrich-ticket", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify(request),
           });
           const body = await parseResponse(response);

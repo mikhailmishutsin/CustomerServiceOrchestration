@@ -64,6 +64,12 @@ def _latest_order_section(order: dict[str, Any]) -> str:
         f"<strong>Date:</strong> {_safe_text(order.get('order_date'))}"
         if order.get("order_date")
         else None,
+        f"<strong>Ship by:</strong> {_safe_text(order.get('ship_by'))}"
+        if order.get("ship_by")
+        else None,
+        f"<strong>Deliver by:</strong> {_safe_text(order.get('deliver_by'))}"
+        if order.get("deliver_by")
+        else None,
         f"<strong>Marketplace:</strong> {_safe_text(order.get('marketplace'))}"
         if order.get("marketplace")
         else None,

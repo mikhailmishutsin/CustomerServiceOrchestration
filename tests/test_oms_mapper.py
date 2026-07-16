@@ -21,6 +21,28 @@ def test_normalizes_embedded_expand_tracking_status() -> None:
     assert orders[0].shipments[0].tracking_status_source == "embedded_expand"
 
 
+def test_normalizes_order_level_ship_by_and_deliver_by_from_expanded_details() -> None:
+    payload = {
+        "orders": [
+            {
+                "order_number": "wm-123",
+                "details": {
+                    "order_number": "wm-123",
+                    "marketplace_order_information": {
+                        "ship_by": "2026-07-15T17:00:00+00:00",
+                        "deliver_by": "2026-07-18T17:30:00+00:00",
+                    },
+                },
+            }
+        ]
+    }
+
+    order = normalize_search_orders_response(payload)[0]
+
+    assert order.ship_by == "2026-07-15T17:00:00+00:00"
+    assert order.deliver_by == "2026-07-18T17:30:00+00:00"
+
+
 def test_redacts_secret_key_from_details_url() -> None:
     payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
 

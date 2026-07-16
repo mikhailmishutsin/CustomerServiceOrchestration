@@ -212,6 +212,8 @@ def test_generic_enrichment_request_can_search_by_order_reference() -> None:
         "https://www.fedex.com/fedextrack/?trknbr=999999999999"
     )
     assert response.matched_orders[0].order_date == "May 12, 2026, 4:20 PM CDT"
+    assert response.matched_orders[0].ship_by is None
+    assert response.matched_orders[0].deliver_by is None
     assert response.matched_orders[0].shipments[0].eta == "May 14, 2026, 7:00 PM CDT"
     assert (
         response.matched_orders[0].shipments[0].actual_pickup_date

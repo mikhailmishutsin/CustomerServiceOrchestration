@@ -88,6 +88,8 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
                     {
                         "order_reference": "wlm-latest",
                         "order_date": "Jun 01, 2026, 10:00 AM CDT",
+                        "ship_by": "Jun 02, 2026, 5:00 PM CDT",
+                        "deliver_by": "Jun 05, 2026, 5:00 PM CDT",
                         "marketplace": "walmart_main",
                         "customer": {
                             "name": "John Customer",
@@ -129,6 +131,8 @@ def test_freshdesk_adapter_renders_structured_latest_order_note() -> None:
     body = str(captured["body"])
     assert "Order context" in body
     assert "Latest order:" in body
+    assert "Ship by:</strong> Jun 02, 2026, 5:00 PM CDT" in body
+    assert "Deliver by:</strong> Jun 05, 2026, 5:00 PM CDT" in body
     assert "OMS link:" in body
     assert "Tracking" in body
     assert "Actual pickup: Jun 02, 2026, 1:34 PM CDT" in body

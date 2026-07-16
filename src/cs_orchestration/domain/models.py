@@ -107,6 +107,8 @@ class DetailsRef(BaseModel):
 class Order(BaseModel):
     order_number: str
     order_date: str | None = None
+    ship_by: str | None = None
+    deliver_by: str | None = None
     marketplace: str | None = None
     order_status: str | None = None
     fulfillment_status: str | None = None
@@ -164,6 +166,8 @@ class ShipmentSnapshot(BaseModel):
 class OrderSnapshot(BaseModel):
     order_reference: str
     order_date: str | None = None
+    ship_by: str | None = None
+    deliver_by: str | None = None
     marketplace: str | None = None
     customer: Customer = Field(default_factory=Customer)
     order_link: str | None = None

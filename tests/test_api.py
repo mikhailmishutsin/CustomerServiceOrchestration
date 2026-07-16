@@ -63,6 +63,8 @@ def test_agent_preview_ui_loads() -> None:
     assert response.status_code == 200
     assert "Customer Service Orchestration" in response.text
     assert "Enrich ticket" in response.text
+    assert 'id="api_key"' in response.text
+    assert 'headers["X-API-Key"] = apiKey' in response.text
     assert "Debug" in response.text
     assert "Mock OMS" in response.text
 

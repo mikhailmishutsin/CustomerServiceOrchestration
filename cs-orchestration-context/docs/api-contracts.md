@@ -308,6 +308,7 @@ When `expand=false` or omitted, response usually contains:
 
 When `expand=true`, response may also contain:
 
+- order-level `ship_by` and `deliver_by`
 - `tracking_status`
 - `actual_pickup_date`
 - `first_scan_date`

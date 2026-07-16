@@ -22,6 +22,7 @@ def normalize_search_orders_response(payload: dict[str, Any]) -> list[Order]:
 
 def normalize_order(raw_order: dict[str, Any]) -> Order:
     details = raw_order.get("details") or raw_order
+    marketplace_order_information = details.get("marketplace_order_information") or {}
     shipping_to = (details.get("shipping_information") or {}).get("to") or {}
     order_number = str(details.get("order_number") or raw_order.get("order_number"))
 
@@ -30,6 +31,16 @@ def normalize_order(raw_order: dict[str, Any]) -> Order:
     return Order(
         order_number=order_number,
         order_date=details.get("order_date") or raw_order.get("order_date"),
+        ship_by=(
+            marketplace_order_information.get("ship_by")
+            or details.get("ship_by")
+            or raw_order.get("ship_by")
+        ),
+        deliver_by=(
+            marketplace_order_information.get("deliver_by")
+            or details.get("deliver_by")
+            or raw_order.get("deliver_by")
+        ),
         marketplace=details.get("marketplace") or raw_order.get("marketplace"),
         order_status=details.get("order_status") or raw_order.get("order_status"),
         fulfillment_status=details.get("order_status_fulfillment")

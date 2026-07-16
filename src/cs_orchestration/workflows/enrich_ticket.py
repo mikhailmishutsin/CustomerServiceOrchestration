@@ -374,6 +374,8 @@ class EnrichTicketWithOrdersWorkflow:
         return OrderSnapshot(
             order_reference=order.order_number,
             order_date=format_datetime(order.order_date),
+            ship_by=format_datetime(order.ship_by),
+            deliver_by=format_datetime(order.deliver_by),
             marketplace=order.marketplace,
             customer=order.customer,
             order_link=order.details_ref.safe_agent_url if order.details_ref else None,
